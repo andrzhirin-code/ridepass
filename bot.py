@@ -12,11 +12,13 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance
 from image_filler import generate_pdf
 
-API_TOKEN = os.getenv("8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4")
+# ТОКЕН БОТА (замени на свой, если надо)
+API_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
+
 if not API_TOKEN:
     raise ValueError("No BOT_TOKEN found")
 
-bot = Bot(token=5171781123)
+bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
@@ -289,8 +291,9 @@ async def i_paid(message: types.Message):
         parse_mode="Markdown"
     )
     
+    MANAGER_ID = 5171781123  # твой ID админа
+    
     pending = get_pending_orders()
-    MANAGER_ID = int(os.getenv("MANAGER_ID", "123456789"))
     
     for order in pending:
         order_id = order[0]
@@ -384,7 +387,7 @@ async def support(message: types.Message):
 
 async def main():
     init_db()
-    print("🤖 Бот запущен")
+    print("🤖 Бот RidePass успешно запущен!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
