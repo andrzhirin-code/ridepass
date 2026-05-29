@@ -8,6 +8,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiohttp import web
 
 from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance
 from image_filler import generate_pdf
@@ -424,11 +425,25 @@ async def support(message: types.Message):
         parse_mode="Markdown"
     )
 
-# ========== ЗАПУСК ==========
+# ========== ЗАПУСК С ПОРТОМ (для Render) ==========
 async def main():
     init_db()
-    print("🤖 Бот RidePass успешно запущен!")
-    await dp.start_polling(bot)
+    
+    # Запускаем бота
+    polling_task = asyncio.create_task(dp.start_polling(bot))
+    
+    # Запускаем фейковый веб-сервер на порту 8080 (для Render)
+    app = web.Application()
+    app.router.add_get("/", lambda request: web.Response(text="Bot is running"))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 8080)
+    await site.start()
+    
+    print("🤖 Бот RidePass успешно запущен на Render!")
+    
+    # Ждём завершения работы бота
+    await polling_task
 
 if __name__ == "__main__":
     asyncio.run(main())
