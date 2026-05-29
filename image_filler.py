@@ -8,30 +8,33 @@ def generate_pdf(order_data):
     c = canvas.Canvas(output_path, pagesize=A4)
     width, height = A4
     
+    y = height - 50
+    
     # Шапка
     c.setFont("Helvetica-Bold", 18)
-    c.drawString(50, height - 50, "RIDEPASS")
+    c.drawString(50, y, "RIDEPASS")
     c.setFont("Helvetica", 10)
-    c.drawString(50, height - 70, "ЭЛЕКТРОННАЯ РЕГИСТРАЦИЯ СИМ")
+    c.drawString(50, y - 20, "ЭЛЕКТРОННАЯ РЕГИСТРАЦИЯ СИМ")
     
     c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, height - 100, "КАРТОЧКА ТРАНСПОРТНОГО СРЕДСТВА")
+    c.drawString(50, y - 50, "КАРТОЧКА ТРАНСПОРТНОГО СРЕДСТВА")
     c.setFont("Helvetica", 10)
-    c.drawString(50, height - 120, "ПЕРСОНАЛЬНОЕ ЭЛЕКТРИЧЕСКОЕ ТРАНСПОРТНОЕ СРЕДСТВО")
+    c.drawString(50, y - 70, "ПЕРСОНАЛЬНОЕ ЭЛЕКТРИЧЕСКОЕ ТРАНСПОРТНОЕ СРЕДСТВО")
     
     # Реестровая запись
     c.setFont("Helvetica", 9)
-    c.drawString(50, height - 145, "Реестровая запись в системе RidePass")
+    c.drawString(50, y - 95, "Реестровая запись в системе RidePass")
     
-    # Таблица с серией, ID, номером записи
-    c.rect(50, height - 170, 150, 20)
-    c.rect(200, height - 170, 150, 20)
-    c.rect(350, height - 170, 150, 20)
-    c.drawString(55, height - 163, f"Серия RP: {order_data.get('series_rp', 'RP-XXXXX')}")
-    c.drawString(205, height - 163, f"ID: {order_data.get('doc_id', 'ID-XXXXX')}")
-    c.drawString(355, height - 163, f"№ записи: {order_data.get('record_number', 'XXXXX')}")
+    # Таблица
+    c.rect(50, y - 120, 150, 20)
+    c.rect(200, y - 120, 150, 20)
+    c.rect(350, y - 120, 150, 20)
+    c.setFont("Helvetica", 9)
+    c.drawString(55, y - 113, f"Серия RP: {order_data.get('series_rp', 'RP-XXXXX')}")
+    c.drawString(205, y - 113, f"ID: {order_data.get('doc_id', 'ID-XXXXX')}")
+    c.drawString(355, y - 113, f"№ записи: {order_data.get('record_number', 'XXXXX')}")
     
-    y = height - 220
+    y = y - 170
     
     # Раздел I
     c.setFont("Helvetica-Bold", 11)
