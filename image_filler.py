@@ -1,7 +1,6 @@
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.units import mm
-import os
+from datetime import datetime
 
 def generate_pdf(order_data):
     output_path = f"temp_{order_data.get('id', 'unknown')}.pdf"
@@ -21,11 +20,10 @@ def generate_pdf(order_data):
     c.setFont("Helvetica", 10)
     c.drawString(50, y - 70, "ПЕРСОНАЛЬНОЕ ЭЛЕКТРИЧЕСКОЕ ТРАНСПОРТНОЕ СРЕДСТВО")
     
-    # Реестровая запись
     c.setFont("Helvetica", 9)
     c.drawString(50, y - 95, "Реестровая запись в системе RidePass")
     
-    # Таблица
+    # Таблица с серией, ID, номером
     c.rect(50, y - 120, 150, 20)
     c.rect(200, y - 120, 150, 20)
     c.rect(350, y - 120, 150, 20)
@@ -36,7 +34,7 @@ def generate_pdf(order_data):
     
     y = y - 170
     
-    # Раздел I
+    # I. ОСНОВНЫЕ ДАННЫЕ
     c.setFont("Helvetica-Bold", 11)
     c.drawString(50, y, "I. ОСНОВНЫЕ ДАННЫЕ")
     y -= 20
@@ -57,7 +55,7 @@ def generate_pdf(order_data):
     
     y -= 10
     
-    # Раздел II
+    # II. ДАННЫЕ О ВЛАДЕЛЬЦЕ
     c.setFont("Helvetica-Bold", 11)
     c.drawString(50, y, "II. ДАННЫЕ О ВЛАДЕЛЬЦЕ")
     y -= 20
@@ -70,7 +68,7 @@ def generate_pdf(order_data):
     
     y -= 25
     
-    # Раздел III
+    # III. СРОК ДЕЙСТВИЯ
     c.setFont("Helvetica-Bold", 11)
     c.drawString(50, y, "III. СРОК ДЕЙСТВИЯ")
     y -= 20
@@ -80,7 +78,7 @@ def generate_pdf(order_data):
     
     y -= 30
     
-    # Раздел IV
+    # IV. СТАТУС
     c.setFont("Helvetica-Bold", 11)
     c.drawString(50, y, "IV. СТАТУС ТРАНСПОРТНОГО СРЕДСТВА")
     y -= 20
@@ -91,7 +89,7 @@ def generate_pdf(order_data):
     
     y -= 40
     
-    # Раздел V
+    # V. СВЕДЕНИЯ О ДОКУМЕНТЕ
     c.setFont("Helvetica-Bold", 11)
     c.drawString(50, y, "V. СВЕДЕНИЯ О ДОКУМЕНТЕ")
     y -= 20
