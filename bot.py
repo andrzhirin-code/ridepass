@@ -1,5 +1,4 @@
 import asyncio
-import os
 import logging
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
@@ -8,7 +7,6 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
-from aiohttp import web
 
 from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance
 from image_filler import generate_pdf
@@ -30,7 +28,8 @@ ADMIN_ID = 5171781123
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Получить документы")],
-        [KeyboardButton(text="Заработай с нами"), KeyboardButton(text="Связь с поддержкой")]
+        [KeyboardButton(text="Заработай с нами/реферальная система")],
+        [KeyboardButton(text="Связь с поддержкой")]
     ],
     resize_keyboard=True
 )
@@ -392,14 +391,14 @@ async def i_paid(message: types.Message):
             f"🏠 Адрес: {order[10]}\n"
             f"📱 Телефон: {order[11]}\n"
             f"💨 Скорость: {order[12]} км/ч\n\n"
-            f"✅ Чтобы подтвердить: /approve {order_id}\n"
-            f"❌ Чтобы отклонить: /reject {order_id}"
+            f"✅ /approve {order_id}\n"
+            f"❌ /reject {order_id}"
         )
         
         await bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
 
 # ========== РЕФЕРАЛКА ==========
-@dp.message(F.text == "Заработай с нами")
+@dp.message(F.text == "Заработай с нами/реферальная система")
 async def referral(message: types.Message):
     user = get_user(message.from_user.id)
     if user:
@@ -425,25 +424,11 @@ async def support(message: types.Message):
         parse_mode="Markdown"
     )
 
-# ========== ЗАПУСК С ПОРТОМ (для Render) ==========
+# ========== ЗАПУСК ==========
 async def main():
     init_db()
-    
-    # Запускаем бота
-    polling_task = asyncio.create_task(dp.start_polling(bot))
-    
-    # Запускаем фейковый веб-сервер на порту 8080 (для Render)
-    app = web.Application()
-    app.router.add_get("/", lambda request: web.Response(text="Bot is running"))
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 8080)
-    await site.start()
-    
-    print("🤖 Бот RidePass успешно запущен на Render!")
-    
-    # Ждём завершения работы бота
-    await polling_task
+    print("🤖 Бот RidePass успешно запущен!")
+    await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
