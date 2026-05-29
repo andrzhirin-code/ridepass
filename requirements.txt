@@ -1,4 +1,2 @@
 aiogram==3.4.1
-Pillow==10.4.0
-wheel
-packaging
+reportlab==4.2.0
