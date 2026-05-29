@@ -12,11 +12,11 @@ from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMar
 from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance
 from image_filler import generate_pdf
 
-API_TOKEN = os.getenv("BOT_TOKEN")
+API_TOKEN = os.getenv("8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4")
 if not API_TOKEN:
     raise ValueError("No BOT_TOKEN found")
 
-bot = Bot(token=API_TOKEN)
+bot = Bot(token=5171781123)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
