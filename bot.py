@@ -7,12 +7,11 @@ from aiogram.filters import Command
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
 
 from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance
 from image_filler import generate_pdf
 
-# ТОКЕН БОТА (замени на свой, если надо)
 API_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
 
 if not API_TOKEN:
@@ -23,6 +22,8 @@ storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
 logging.basicConfig(level=logging.INFO)
+
+ADMIN_ID = 5171781123  # твой ID
 
 # Клавиатуры
 main_menu = ReplyKeyboardMarkup(
@@ -83,6 +84,78 @@ async def cmd_start(message: types.Message, state: FSMContext):
         reply_markup=main_menu,
         parse_mode="Markdown"
     )
+
+# Команды админа
+@dp.message(Command("approve"))
+async def approve_order(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        await message.answer("❌ У вас нет прав")
+        return
+    
+    try:
+        order_id = int(message.text.split()[1])
+    except:
+        await message.answer("❌ Используйте: /approve [номер_заявки]")
+        return
+    
+    order = get_order(order_id)
+    if not order:
+        await message.answer(f"❌ Заявка #{order_id} не найдена")
+        return
+    
+    update_order_status(order_id, "approved")
+    
+    today = datetime.now().strftime("%d.%m.%Y")
+    expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
+    
+    order_data = {
+        "id": order_id,
+        "vehicle_type": order[2],
+        "brand": order[3],
+        "model": order[4],
+        "year": order[5],
+        "power": order[6],
+        "serial": order[7] if order[7] else "Отсутствует",
+        "full_name": order[8],
+        "passport": order[9],
+        "address": order[10],
+        "phone": order[11],
+        "speed": order[12],
+        "series_rp": f"RP-{order_id:06d}",
+        "doc_id": f"ID-{order_id:06d}",
+        "record_number": f"{order_id:06d}",
+        "registry_number": f"KP-{order_id:06d}",
+        "doc_hash": f"HASH-{order_id:06d}",
+        "issue_date": today,
+        "expiry_date": expiry,
+    }
+    
+    pdf_path = generate_pdf(order_data)
+    with open(pdf_path, "rb") as pdf:
+        await bot.send_document(order[1], pdf, caption="✅ *Ваш платеж подтверждён!* Документы готовы.")
+    
+    await message.answer(f"✅ Заявка #{order_id} подтверждена, PDF отправлен пользователю")
+
+@dp.message(Command("reject"))
+async def reject_order(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        await message.answer("❌ У вас нет прав")
+        return
+    
+    try:
+        order_id = int(message.text.split()[1])
+    except:
+        await message.answer("❌ Используйте: /reject [номер_заявки]")
+        return
+    
+    order = get_order(order_id)
+    if not order:
+        await message.answer(f"❌ Заявка #{order_id} не найдена")
+        return
+    
+    update_order_status(order_id, "rejected")
+    await bot.send_message(order[1], "❌ *Платёж не подтверждён.* Свяжитесь с поддержкой.", parse_mode="Markdown")
+    await message.answer(f"❌ Заявка #{order_id} отклонена")
 
 @dp.message(F.text == "◀️ Назад")
 async def back_to_menu(message: types.Message, state: FSMContext):
@@ -291,8 +364,6 @@ async def i_paid(message: types.Message):
         parse_mode="Markdown"
     )
     
-    MANAGER_ID = 5171781123  # твой ID админа
-    
     pending = get_pending_orders()
     
     for order in pending:
@@ -309,63 +380,12 @@ async def i_paid(message: types.Message):
             f"🆔 Паспорт: {order[9]}\n"
             f"🏠 Адрес: {order[10]}\n"
             f"📱 Телефон: {order[11]}\n"
-            f"💨 Скорость: {order[12]} км/ч"
+            f"💨 Скорость: {order[12]} км/ч\n\n"
+            f"✅ Чтобы подтвердить: /approve {order_id}\n"
+            f"❌ Чтобы отклонить: /reject {order_id}"
         )
         
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"approve_{order_id}")],
-            [InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{order_id}")]
-        ])
-        
-        await bot.send_message(MANAGER_ID, text, reply_markup=kb, parse_mode="Markdown")
-
-@dp.callback_query()
-async def handle_admin(call: types.CallbackQuery):
-    data = call.data
-    order_id = int(data.split("_")[1])
-    action = data.split("_")[0]
-    
-    if action == "approve":
-        order = get_order(order_id)
-        update_order_status(order_id, "approved")
-        
-        today = datetime.now().strftime("%d.%m.%Y")
-        expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
-        
-        order_data = {
-            "id": order_id,
-            "vehicle_type": order[2],
-            "brand": order[3],
-            "model": order[4],
-            "year": order[5],
-            "power": order[6],
-            "serial": order[7] if order[7] else "Отсутствует",
-            "full_name": order[8],
-            "passport": order[9],
-            "address": order[10],
-            "phone": order[11],
-            "speed": order[12],
-            "series_rp": f"RP-{order_id:06d}",
-            "doc_id": f"ID-{order_id:06d}",
-            "record_number": f"{order_id:06d}",
-            "registry_number": f"KP-{order_id:06d}",
-            "doc_hash": f"HASH-{order_id:06d}",
-            "issue_date": today,
-            "expiry_date": expiry,
-        }
-        
-        pdf_path = generate_pdf(order_data)
-        with open(pdf_path, "rb") as pdf:
-            await bot.send_document(order[1], pdf, caption="✅ *Ваш платеж подтверждён!* Документы готовы.")
-        
-        await call.message.edit_text(f"✅ *Заявка #{order_id} подтверждена*", parse_mode="Markdown")
-        
-    elif action == "reject":
-        update_order_status(order_id, "rejected")
-        await bot.send_message(order[1], "❌ *Платёж не подтверждён.* Свяжитесь с поддержкой.", parse_mode="Markdown")
-        await call.message.edit_text(f"❌ *Заявка #{order_id} отклонена*", parse_mode="Markdown")
-    
-    await call.answer()
+        await bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
 
 @dp.message(F.text == "💰 Заработай с нами")
 async def referral(message: types.Message):
