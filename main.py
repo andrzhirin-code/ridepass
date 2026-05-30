@@ -16,7 +16,7 @@ from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_applicati
 from aiohttp import web
 
 from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance
-from image_filler import generate_pdf
+from image_filler import fill_order_template
 
 API_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
 ADMIN_ID = 5171781123
@@ -351,24 +351,22 @@ async def handle_admin(callback: CallbackQuery):
             today = datetime.now().strftime("%d.%m.%Y")
             expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
             
-            # ИСПРАВЛЕННЫЕ ИНДЕКСЫ ОТ GEMINI
-            order_data = {
-                "id": order[0],
-                "vehicle_type": order[2],
-                "brand": order[3],
-                "model": order[4],
-                "year": order[5],
-                "power": order[6],
-                "vin": order[7],
-                "full_name": order[8],
-                "passport": order[9],
-                "address": order[10],
-                "max_speed": order[11],
-                "issue_date": today,
-                "expiry_date": expiry,
-            }
+            # ЯВНОЕ СОПОСТАВЛЕНИЕ ИНДЕКСОВ (поправь по своим данным)
+            pdf_path = await asyncio.to_thread(
+                fill_order_template,
+                order_id=str(order[0]),
+                vehicle_type=str(order[2]),
+                brand=str(order[3]),
+                model=str(order[4]),
+                year=str(order[5]),
+                vin=str(order[7]),
+                power=str(order[6]),
+                max_speed=str(order[12]),
+                full_name=str(order[8]),
+                passport=str(order[9]),
+                address=str(order[10])
+            )
             
-            pdf_path = generate_pdf(order_data)
             document = FSInputFile(pdf_path)
             await bot.send_document(order[1], document, caption="✅ Ваш платеж подтверждён! Документы готовы.")
             
