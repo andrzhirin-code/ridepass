@@ -24,28 +24,32 @@ def fill_order_template(
     page = doc[0]
 
     form_data = {
-        "vehicle_type": str(vehicle_type) if vehicle_type else "Не указано",
+        "vehicle_type": str(vehicle_type) if vehicle_type else "",
         "category": "СИМ",
-        "brand": str(brand) if brand else "Не указано",
-        "model": str(model) if model else "Не указано",
-        "year": str(year) if year else "Не указано",
-        "vin": str(vin) if vin else "Не указано",
-        "power": str(power) if power else "Не указано",
-        "max_speed": str(max_speed) if max_speed else "Не указано",
-        "full_name": str(full_name) if full_name else "Не указано",
-        "passport": str(passport) if passport else "Не указано",
-        "address": str(address) if address else "Не указано",
+        "brand": str(brand) if brand else "",
+        "model": str(model) if model else "",
+        "year": str(year) if year else "",
+        "vin": str(vin) if vin else "",
+        "power": str(power) if power else "",
+        "max_speed": str(max_speed) if max_speed else "",
+        "full_name": str(full_name) if full_name else "",
+        "passport": str(passport) if passport else "",
+        "addres": str(address) if address else "",
     }
 
     for field in page.widgets():
         field_name = field.field_name
         if field_name in form_data:
             field.field_value = form_data[field_name]
-            field.field_flags |= fitz.PDF_FIELD_IS_READ_ONLY
             field.update()
 
-    output_path = os.path.join(BASE_DIR, f"order_{order_id}.pdf")
-    doc.save(output_path, incremental=False, flatten=True)
+    pdf_bytes = doc.convert_to_pdf()
     doc.close()
+
+    flattened_doc = fitz.open("pdf", pdf_bytes)
+
+    output_path = os.path.join(BASE_DIR, f"order_{order_id}.pdf")
+    flattened_doc.save(output_path, garbage=3, deflate=True)
+    flattened_doc.close()
 
     return output_path
