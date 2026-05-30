@@ -323,8 +323,11 @@ async def i_paid(message: types.Message):
 # ========== ИСПРАВЛЕННЫЙ ОБРАБОТЧИК КНОПОК ==========
 @dp.callback_query()
 async def handle_admin(callback: CallbackQuery):
+    # ОБЯЗАТЕЛЬНАЯ СТРОКА — подтверждаем получение callback
+    await callback.answer()
+    
     if callback.from_user.id != ADMIN_ID:
-        await callback.answer("У вас нет прав", show_alert=True)
+        await callback.message.answer("У вас нет прав")
         return
     
     action, order_id_str = callback.data.split("_")
@@ -333,7 +336,6 @@ async def handle_admin(callback: CallbackQuery):
     
     if not order:
         await callback.message.edit_text(f"❌ Заявка #{order_id} не найдена")
-        await callback.answer()
         return
     
     if action == "approve":
@@ -368,13 +370,11 @@ async def handle_admin(callback: CallbackQuery):
             await bot.send_document(order[1], pdf, caption="✅ Ваш платеж подтверждён! Документы готовы.")
         
         await callback.message.edit_text(f"✅ Заявка #{order_id} подтверждена. PDF отправлен.")
-        await callback.answer("Заявка подтверждена!")
         
     elif action == "reject":
         update_order_status(order_id, "rejected")
         await bot.send_message(order[1], "❌ Платёж не подтверждён. Свяжитесь с поддержкой.")
         await callback.message.edit_text(f"❌ Заявка #{order_id} отклонена.")
-        await callback.answer("Заявка отклонена.")
 
 @dp.message(F.text == "Заработай с нами/реферальная система")
 async def referral(message: types.Message):
