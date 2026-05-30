@@ -379,7 +379,7 @@ async def handle_admin(callback: CallbackQuery):
             
     elif action == "reject":
         update_order_status(order_id, "rejected")
-        await bot.send_message(order[1], "❌ Платёж не подтвержден. Свяжитесь с поддержкой.")
+        await bot.send_message(order[1], "❌ Платёж не подтверждён. Свяжитесь с поддержкой.")
         await callback.message.edit_text(f"❌ Заявка #{order_id} отклонена.")
 
 # ========== РЕФЕРАЛКА ==========
