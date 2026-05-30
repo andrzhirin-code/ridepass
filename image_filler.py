@@ -32,11 +32,11 @@ def fill_order_template(
     Y_OFF = 18
     X_VAL = 1050
 
-    # Шапка (ID)
+    # Шапка
     if order_id:
         draw.text((1950, 560 + Y_OFF), str(order_id), fill=(26, 36, 43), font=font_large, anchor="ms")
 
-    # Раздел I. ОСНОВНЫЕ ДАННЫЕ (Y от 725 до 1075)
+    # Раздел I
     draw.text((X_VAL, 725 + Y_OFF), str(vehicle_type), fill=(26, 36, 43), font=font_normal, anchor="ls")
     draw.text((X_VAL, 775 + Y_OFF), "СИМ", fill=(26, 36, 43), font=font_normal, anchor="ls")
     draw.text((X_VAL, 825 + Y_OFF), str(brand), fill=(26, 36, 43), font=font_normal, anchor="ls")
@@ -46,7 +46,7 @@ def fill_order_template(
     draw.text((X_VAL, 1025 + Y_OFF), str(power), fill=(26, 36, 43), font=font_normal, anchor="ls")
     draw.text((X_VAL, 1075 + Y_OFF), str(max_speed), fill=(26, 36, 43), font=font_normal, anchor="ls")
 
-    # Раздел II. ДАННЫЕ О ВЛАДЕЛЬЦЕ (Y от 1195 до 1355)
+    # Раздел II
     draw.text((X_VAL, 1195 + Y_OFF), str(full_name), fill=(26, 36, 43), font=font_normal, anchor="ls")
     draw.text((X_VAL, 1275 + Y_OFF), str(passport), fill=(26, 36, 43), font=font_normal, anchor="ls")
     draw.text((X_VAL, 1355 + Y_OFF), str(address), fill=(26, 36, 43), font=font_normal, anchor="ls")
