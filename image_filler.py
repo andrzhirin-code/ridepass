@@ -12,47 +12,40 @@ def fill_order_template(data: dict) -> str:
     doc = fitz.open(TEMPLATE_PATH)
     page = doc[0]
 
-    # ЧЁТКАЯ КАРТА КООРДИНАТ (X, Y) — подбери под свой бланк!
-    field_coordinates = {
-        "id": (1240, 260),
-        "vehicle_type": (1080, 583),
-        "category": (1080, 630),
-        "brand": (1080, 678),
-        "model": (1080, 725),
-        "year": (1080, 773),
-        "vin": (1080, 820),
-        "power": (1080, 868),
-        "max_speed": (1080, 915),
-        "full_name": (1080, 1038),
-        "passport": (1080, 1105),
-        "address": (1080, 1173),
-    }
+    # Регистрируем русский шрифт
+    page.insert_font(fontname="ari", fontfile=FONT_PATH)
 
-    # Категория всегда "СИМ"
-    if "category" in field_coordinates:
+    for field in page.widgets():
+        field_name = field.field_name
+        if not field_name:
+            continue
+
+        # Ищем значение для этого поля
+        value = None
+        if field_name in data:
+            value = data[field_name]
+        elif field_name.lower() == "category":
+            value = "СИМ"
+
+        if not value:
+            continue
+
+        rect = field.rect
+        # Точка для текста (левый край, чуть выше нижней границы)
+        point = fitz.Point(rect.x0 + 3, rect.y1 - 4)
+        font_size = 11 if field_name != "id" else 14
+
+        # Вставляем текст
         page.insert_text(
-            fitz.Point(field_coordinates["category"][0], field_coordinates["category"][1]),
-            "СИМ",
-            fontsize=11,
+            point,
+            str(value),
+            fontsize=font_size,
             fontname="ari",
-            fontfile=FONT_PATH,
-            color=(0.12, 0.16, 0.2)
+            color=(0, 0, 0)
         )
 
-    # Заполняем остальные поля
-    for key, coords in field_coordinates.items():
-        if key == "category":
-            continue
-        value = data.get(key, "")
-        if value:
-            page.insert_text(
-                fitz.Point(coords[0], coords[1]),
-                str(value),
-                fontsize=11 if key != "id" else 14,
-                fontname="ari",
-                fontfile=FONT_PATH,
-                color=(0.12, 0.16, 0.2)
-            )
+        # Удаляем интерактивное поле (рамку)
+        page.delete_widget(field)
 
     output_path = os.path.join(BASE_DIR, f"order_{data.get('id', '1')}.pdf")
     doc.save(output_path, garbage=3, deflate=True)
