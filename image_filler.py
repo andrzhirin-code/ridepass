@@ -11,7 +11,6 @@ def fill_order_template(data: dict) -> str:
     doc = fitz.open(TEMPLATE_PATH)
     page = doc[0]
 
-    # Прямое сопоставление: имя поля в PDF -> ключ из order_data
     mapping = {
         "Text3": "vehicle_type",
         "Text4": "category",
@@ -20,7 +19,6 @@ def fill_order_template(data: dict) -> str:
         "Text7": "year",
         "Text8": "vin",
         "Text9": "power",
-        # Если есть ещё поля, добавь сюда (Text10, Text11...)
     }
 
     for field in page.widgets():
@@ -37,7 +35,8 @@ def fill_order_template(data: dict) -> str:
                 field.field_value = str(value)
                 field.update()
 
-    page.bake()
+    # Вместо page.bake() используем flatten()
+    page.flatten()
 
     output_path = os.path.join(BASE_DIR, f"order_{data.get('id', '1')}.pdf")
     doc.save(output_path, garbage=4, clean=True, deflate=True)
