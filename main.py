@@ -342,11 +342,6 @@ async def handle_admin(callback: CallbackQuery):
     order_id = int(order_id_str)
     order = get_order(order_id)
     
-    # ========== ОТЛАДКА ==========
-    print(f"=== ОТЛАДКА: order = {order}")
-    print(f"=== Тип данных: {type(order)}")
-    # ==============================
-    
     if not order:
         await callback.message.edit_text(f"❌ Заявка #{order_id} не найдена")
         return
@@ -356,21 +351,28 @@ async def handle_admin(callback: CallbackQuery):
             today = datetime.now().strftime("%d.%m.%Y")
             expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
             
-            pdf_path = await asyncio.to_thread(
-                fill_order_template,
-                order_id=str(order[0]),
-                vehicle_type=str(order[2]),
-                brand=str(order[3]),
-                model=str(order[4]),
-                year=str(order[5]),
-                vin=str(order[6]),
-                power=str(order[7]),
-                max_speed=str(order[8]),
-                full_name=str(order[9]),
-                passport=str(order[10]),
-                address=str(order[12])
-            )
+            # Функция очистки пустых значений
+            def clean_val(value):
+                if value is None or str(value).strip() == "" or str(value).strip().lower() in ["none", "null"]:
+                    return "—"
+                return str(value).strip()
             
+            # Сбор данных с проверкой
+            order_data = {
+                "id": clean_val(order[0]),
+                "vehicle_type": clean_val(order[5]),
+                "brand": clean_val(order[6]),
+                "model": clean_val(order[7]),
+                "year": clean_val(order[8]),
+                "vin": clean_val(order[9]),
+                "power": clean_val(order[10]),
+                "max_speed": clean_val(order[11]),
+                "full_name": clean_val(order[2]),
+                "passport": clean_val(order[3]),
+                "address": clean_val(order[4]),
+            }
+            
+            pdf_path = await asyncio.to_thread(fill_order_template, **order_data)
             document = FSInputFile(pdf_path)
             await bot.send_document(order[1], document, caption="✅ Ваш платеж подтверждён! Документы готовы.")
             
