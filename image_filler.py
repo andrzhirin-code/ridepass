@@ -24,6 +24,7 @@ def fill_order_template(
     writer = PdfWriter()
     writer.append(reader)
 
+    # Заполняем поля
     writer.update_page_form_field_values(
         writer.pages[0],
         {
@@ -41,8 +42,15 @@ def fill_order_template(
         }
     )
 
+    # Защита от редактирования (только печать)
+    writer.encrypt(
+        user_password=None,
+        owner_password="ridepass_protect_2026",
+        permissions=4  # 4 = только печать, 1 = ничего нельзя
+    )
+
     output_path = os.path.join(BASE_DIR, f"order_{order_id}.pdf")
     with open(output_path, "wb") as output_file:
-        writer.write(output_file)
+        writer.write(output_file, flatten=True)
 
     return output_path
