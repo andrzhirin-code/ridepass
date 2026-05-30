@@ -4,7 +4,6 @@ import os
 def generate_pdf(order_data):
     template_path = "template.png"
     
-    # Если нет шаблона — создаём PDF через fpdf2
     if not os.path.exists(template_path):
         from fpdf import FPDF
         pdf = FPDF()
@@ -16,68 +15,54 @@ def generate_pdf(order_data):
         pdf.output(output_path)
         return output_path
     
-    # Открываем шаблон
     img = Image.open(template_path)
     draw = ImageDraw.Draw(img)
     
-    # Загружаем БОЛЬШОЙ шрифт (24 пикселя)
+    # Крупный шрифт
     try:
-        font = ImageFont.truetype("arial.ttf", 24)
-        font_bold = ImageFont.truetype("arialbd.ttf", 24)
+        font = ImageFont.truetype("arial.ttf", 28)
     except:
         font = ImageFont.load_default()
-        font_bold = font
     
-    # Получаем размеры картинки
     width, height = img.size
-    print(f"Размер шаблона: {width}x{height}")
     
-    # ========== КООРДИНАТЫ (НАСТРОЙ ПОД СВОЙ ШАБЛОН) ==========
-    # Левая колонка (X = 300)
-    x_left = 300
+    # Все поля в левой части, с большим отступом
+    x_pos = 300
+    y = 350
+    y_step = 45
     
-    # Вертикальные отступы (Y)
-    y_start = 300
-    y_step = 40
+    # Основные данные
+    draw.text((x_pos, y), order_data.get('vehicle_type', ''), fill="black", font=font)
+    draw.text((x_pos, y + y_step), "СИМ", fill="black", font=font)
+    draw.text((x_pos, y + y_step * 2), order_data.get('brand', ''), fill="black", font=font)
+    draw.text((x_pos, y + y_step * 3), order_data.get('model', ''), fill="black", font=font)
+    draw.text((x_pos, y + y_step * 4), order_data.get('year', ''), fill="black", font=font)
+    draw.text((x_pos, y + y_step * 5), order_data.get('serial', ''), fill="black", font=font)
+    draw.text((x_pos, y + y_step * 6), f"{order_data.get('power', '')} Вт", fill="black", font=font)
+    draw.text((x_pos, y + y_step * 7), f"{order_data.get('speed', '')} км/ч", fill="black", font=font)
     
-    fields = {
-        'vehicle_type': (x_left, y_start + 0 * y_step),
-        # Категория — пропускаем
-        'brand': (x_left, y_start + 2 * y_step),
-        'model': (x_left, y_start + 3 * y_step),
-        'year': (x_left, y_start + 4 * y_step),
-        'serial': (x_left, y_start + 5 * y_step),
-        'power': (x_left, y_start + 6 * y_step),
-        'speed': (x_left, y_start + 7 * y_step),
-        'full_name': (x_left, y_start + 9 * y_step),
-        'passport': (x_left, y_start + 10 * y_step),
-        'address': (x_left, y_start + 11 * y_step),
-    }
-    
-    for field_name, (x, y) in fields.items():
-        value = order_data.get(field_name, '')
-        if value:
-            draw.text((x, y), str(value), fill="black", font=font)
-    
-    # Категория — всегда СИМ
-    draw.text((x_left, y_start + 1 * y_step), "СИМ", fill="black", font=font)
-    
-    # Серия RP, ID, № записи (в шапке)
-    draw.text((300, 200), order_data.get('series_rp', ''), fill="black", font=font)
-    draw.text((500, 200), order_data.get('doc_id', ''), fill="black", font=font)
-    draw.text((700, 200), order_data.get('record_number', ''), fill="black", font=font)
+    # Владелец
+    y_owner = y + y_step * 9
+    draw.text((x_pos, y_owner), order_data.get('full_name', ''), fill="black", font=font)
+    draw.text((x_pos, y_owner + y_step), order_data.get('passport', ''), fill="black", font=font)
+    draw.text((x_pos, y_owner + y_step * 2), order_data.get('address', ''), fill="black", font=font)
     
     # Даты
-    draw.text((300, 850), order_data.get('issue_date', ''), fill="black", font=font)
-    draw.text((600, 850), order_data.get('expiry_date', ''), fill="black", font=font)
+    y_dates = y + y_step * 14
+    draw.text((x_pos, y_dates), order_data.get('issue_date', ''), fill="black", font=font)
+    draw.text((x_pos + 250, y_dates), order_data.get('expiry_date', ''), fill="black", font=font)
     
-    # Реестровый номер, дата формирования, хеш
-    draw.text((300, 1000), order_data.get('registry_number', ''), fill="black", font=font)
-    draw.text((550, 1000), order_data.get('issue_date', ''), fill="black", font=font)
-    draw.text((750, 1000), order_data.get('doc_hash', ''), fill="black", font=font)
+    # Реестр и хеш
+    y_reg = y + y_step * 17
+    draw.text((x_pos, y_reg), order_data.get('registry_number', ''), fill="black", font=font)
+    draw.text((x_pos + 250, y_reg), order_data.get('issue_date', ''), fill="black", font=font)
+    draw.text((x_pos + 500, y_reg), order_data.get('doc_hash', ''), fill="black", font=font)
     
-    # Сохраняем как PDF
+    # Серия RP, ID, № записи (шапка)
+    draw.text((250, 180), order_data.get('series_rp', ''), fill="black", font=font)
+    draw.text((450, 180), order_data.get('doc_id', ''), fill="black", font=font)
+    draw.text((650, 180), order_data.get('record_number', ''), fill="black", font=font)
+    
     output_path = f"temp_{order_data.get('id', 'unknown')}.pdf"
-    img.save(output_path, "PDF", resolution=300.0)
-    print(f"PDF сохранён: {output_path}")
+    img.save(output_path, "PDF", resolution=300)
     return output_path
