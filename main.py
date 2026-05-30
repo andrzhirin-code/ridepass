@@ -351,18 +351,19 @@ async def handle_admin(callback: CallbackQuery):
             today = datetime.now().strftime("%d.%m.%Y")
             expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
             
+            # ИСПРАВЛЕННЫЙ БЛОК С СООТВЕТСТВИЕМ ИНДЕКСОВ
             order_data = {
-                "id": order_id,
-                "vehicle_type": order[2],
-                "brand": order[3],
-                "model": order[4],
-                "year": order[5],
-                "power": order[6],
-                "vin": order[7] if order[7] else "Отсутствует",
-                "max_speed": order[12],
-                "full_name": order[8],
-                "passport": order[9],
-                "address": order[10],
+                "id": order[0],
+                "full_name": order[2],
+                "passport": order[3],
+                "address": order[4],
+                "vehicle_type": order[5],
+                "brand": order[6],
+                "model": order[7],
+                "year": order[8],
+                "vin": order[9] if order[9] else "Отсутствует",
+                "power": order[10],
+                "max_speed": order[11],
                 "issue_date": today,
                 "expiry_date": expiry,
             }
@@ -371,14 +372,13 @@ async def handle_admin(callback: CallbackQuery):
             document = FSInputFile(pdf_path)
             await bot.send_document(order[1], document, caption="✅ Ваш платеж подтверждён! Документы готовы.")
             
-            # Удаляем временный файл
             if os.path.exists(pdf_path):
                 os.remove(pdf_path)
             
             await callback.message.edit_text(f"✅ Заявка #{order_id} подтверждена. PDF отправлен.")
             
         except Exception as e:
-            await callback.message.edit_text(f"❌ Ошибка при подтверждении: {e}")
+            await callback.message.edit_text(f"❌ Ошибка: {e}")
             
     elif action == "reject":
         update_order_status(order_id, "rejected")
