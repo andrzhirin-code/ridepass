@@ -3,63 +3,70 @@ import fitz
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
+FONT_PATH = os.path.join(BASE_DIR, "ARIAL.TTF")
 
 def fill_order_template(data: dict) -> str:
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
+    if not os.path.exists(FONT_PATH):
+        raise FileNotFoundError(f"Шрифт не найден: {FONT_PATH}")
 
     doc = fitz.open(TEMPLATE_PATH)
     page = doc[0]
 
-    form_data = {
-        "vehicle_type": str(data.get("vehicle_type", "—")),
-        "category": "СИМ",
-        "brand": str(data.get("brand", "—")),
-        "model": str(data.get("model", "—")),
-        "year": str(data.get("year", "—")),
-        "vin": str(data.get("vin", "—")),
-        "power": str(data.get("power", "—")),
-        "max_speed": str(data.get("max_speed", "—")),
-        "full_name": str(data.get("full_name", "—")),
-        "passport": str(data.get("passport", "—")),
-        "address": str(data.get("address", "—"))
-    }
+    # Двухуровневая сортировка: сначала по строке (Y), затем по X
+    widgets = [w for w in page.widgets()]
+    widgets.sort(key=lambda w: (round(w.rect.y0 / 10) * 10, w.rect.x0))
+
+    # Порядок значений должен строго соответствовать порядку полей на бланке
+    ordered_values = [
+        "",                                   # Серия RP (не заполняем)
+        "",                                   # ID (не заполняем)
+        str(data.get("id", "—")),             # № записи
+        str(data.get("vehicle_type", "—")),   # Тип ТС
+        "СИМ",                                # Категория
+        str(data.get("brand", "—")),          # Марка
+        str(data.get("model", "—")),          # Модель
+        str(data.get("year", "—")),           # Год
+        str(data.get("vin", "—")),            # VIN
+        str(data.get("power", "—")),          # Мощность
+        str(data.get("max_speed", "—")),      # Скорость
+        str(data.get("full_name", "—")),      # ФИО
+        str(data.get("passport", "—")),       # Паспорт
+        str(data.get("address", "—")),        # Адрес
+    ]
 
     text_queue = []
+    for i, field in enumerate(widgets):
+        if i >= len(ordered_values):
+            break
+        if i in [0, 1] or not ordered_values[i]:
+            continue
 
-    # 1. Сканируем поля и запоминаем их координаты
-    for field in page.widgets():
-        pdf_field_name = str(field.field_name).strip().lower()
-        
-        for key, value in form_data.items():
-            if key in pdf_field_name or (key == "address" and "addres" in pdf_field_name):
-                rect = field.rect
-                pos_x = rect.x0 + 2
-                pos_y = rect.y1 - 4
-                text_queue.append({
-                    "text": value,
-                    "point": fitz.Point(pos_x, pos_y),
-                    "is_id": (key == "id")
-                })
-                break
+        rect = field.rect
+        text_queue.append({
+            "text": ordered_values[i],
+            "point": fitz.Point(rect.x0 + 4, rect.y1 - 5),
+            "is_id": (i == 2)
+        })
 
-    # 2. Удаляем все серые и белые обводки (виджеты)
-    for field in page.widgets():
+    # Удаляем виджеты (убираем рамки и фоны)
+    for field in widgets:
         page.delete_widget(field)
 
-    # 3. Наносим чистый печатный текст
+    # Вставляем текст с использованием шрифта
     for item in text_queue:
-        font_size = 14 if item.get("is_id") else 11
+        font_size = 14 if item["is_id"] else 11
         page.insert_text(
             item["point"],
             item["text"],
             fontsize=font_size,
-            fontname="hebo",
-            color=(0.1, 0.14, 0.17)
+            fontname="ari",
+            fontfile=FONT_PATH,
+            color=(0.12, 0.16, 0.2)
         )
 
-    order_id = data.get("id", "temp")
-    output_path = os.path.join(BASE_DIR, f"order_{order_id}.pdf")
+    output_path = os.path.join(BASE_DIR, f"order_{data.get('id', 'temp')}.pdf")
     doc.save(output_path, garbage=3, deflate=True)
     doc.close()
 
