@@ -18,6 +18,8 @@ from image_filler import generate_pdf
 
 API_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
 ADMIN_ID = 5171781123
+
+# Webhook URL (Render сам подставит ваш домен)
 WEBHOOK_URL = "https://ridepass.onrender.com/webhook"
 
 bot = Bot(token=API_TOKEN)
@@ -25,6 +27,7 @@ storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 logging.basicConfig(level=logging.INFO)
 
+# ========== КЛАВИАТУРЫ ==========
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Получить документы")],
@@ -39,6 +42,7 @@ back_button = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
+# ========== FSM ==========
 class Form(StatesGroup):
     vehicle_type = State()
     custom_type = State()
@@ -54,6 +58,7 @@ class Form(StatesGroup):
     phone = State()
     speed = State()
 
+# ========== ОБРАБОТЧИКИ ==========
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
     args = message.text.split()
@@ -321,8 +326,10 @@ async def i_paid(message: types.Message):
         
         await bot.send_message(ADMIN_ID, text, reply_markup=kb)
 
+# ========== ОБРАБОТЧИК КНОПОК (СОГЛАСНО ДОКУМЕНТАЦИИ) ==========
 @dp.callback_query()
 async def handle_callback(callback: CallbackQuery):
+    # Обязательный ответ Telegram (убирает часики загрузки)
     await callback.answer()
     
     if callback.from_user.id != ADMIN_ID:
@@ -427,7 +434,7 @@ async def main():
     await site.start()
     
     print("🤖 Бот RidePass успешно запущен на вебхуке!")
-    await asyncio.Event().wait()  # Бесконечно ждём
+    await asyncio.Event().wait()
 
 if __name__ == "__main__":
     asyncio.run(main())
