@@ -7,6 +7,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import ReplyKeyboardMarkup, KeyboardButton
+from aiohttp import web
 
 from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance
 from image_filler import generate_pdf
@@ -54,6 +55,18 @@ class Form(StatesGroup):
     address = State()
     phone = State()
     speed = State()
+
+# ========== ВЕБ-СЕРВЕР ДЛЯ RENDER (убирает предупреждение No open ports) ==========
+async def health_check(request):
+    return web.Response(text="Bot is running")
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 8080)
+    await site.start()
 
 # ========== СТАРТ ==========
 @dp.message(Command("start"))
@@ -424,6 +437,10 @@ async def support(message: types.Message):
 async def main():
     init_db()
     await bot.delete_webhook(drop_pending_updates=True)
+    
+    # Запускаем веб-сервер для Render (убирает предупреждение No open ports detected)
+    asyncio.create_task(start_web_server())
+    
     print("🤖 Бот RidePass успешно запущен!")
     await dp.start_polling(bot)
 
