@@ -1,6 +1,5 @@
 import asyncio
 import os
-import sys
 import logging
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
@@ -18,14 +17,6 @@ from aiohttp import web
 
 from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance
 from image_filler import fill_order_template
-
-# ========== НАСТРОЙКА ЛОГОВ В ФАЙЛ ==========
-logging.basicConfig(
-    filename='bot_debug.log',
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-# ============================================
 
 API_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
 ADMIN_ID = 5171781123
@@ -351,11 +342,9 @@ async def handle_admin(callback: CallbackQuery):
     order_id = int(order_id_str)
     order = get_order(order_id)
     
-    # Логируем полученные данные из БД
-    logging.info(f"order: {order}")
-    logging.info(f"order type: {type(order)}")
-    if order:
-        logging.info(f"order length: {len(order)}")
+    # Отправляем лог себе в Telegram
+    await bot.send_message(ADMIN_ID, f"🔍 order: {order}")
+    await bot.send_message(ADMIN_ID, f"🔍 type: {type(order)}")
     
     if not order:
         await callback.message.edit_text(f"❌ Заявка #{order_id} не найдена")
@@ -383,8 +372,7 @@ async def handle_admin(callback: CallbackQuery):
                 "max_speed": safe_str(order[12]),
             }
             
-            # Логируем подготовленные данные
-            logging.info(f"order_data: {order_data}")
+            await bot.send_message(ADMIN_ID, f"📦 order_data: {order_data}")
             
             pdf_path = await asyncio.to_thread(fill_order_template, order_data)
             document = FSInputFile(pdf_path)
@@ -396,8 +384,8 @@ async def handle_admin(callback: CallbackQuery):
             await callback.message.edit_text(f"✅ Заявка #{order_id} подтверждена. PDF отправлен.")
             
         except Exception as e:
-            logging.error(f"Ошибка в approve: {e}")
             await callback.message.edit_text(f"❌ Ошибка: {e}")
+            await bot.send_message(ADMIN_ID, f"❌ Ошибка: {e}")
             
     elif action == "reject":
         update_order_status(order_id, "rejected")
@@ -435,11 +423,9 @@ async def on_startup():
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(WEBHOOK_URL, allowed_updates=["message", "callback_query"])
     print(f"Webhook set to {WEBHOOK_URL}")
-    logging.info(f"Webhook set to {WEBHOOK_URL}")
 
 async def main():
     init_db()
-    logging.info("Бот запущен")
     
     app = web.Application()
     
