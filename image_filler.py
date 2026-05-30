@@ -1,109 +1,54 @@
-from reportlab.pdfgen import canvas
-from reportlab.lib.pagesizes import A4
-from datetime import datetime
+from PIL import Image, ImageDraw, ImageFont
+import os
 
 def generate_pdf(order_data):
+    template_path = "template.png"
+    
+    # Если нет шаблона — создаём PDF через fpdf2
+    if not os.path.exists(template_path):
+        from fpdf import FPDF
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("helvetica", size=12)
+        for key, value in order_data.items():
+            pdf.cell(0, 10, f"{key}: {value}", ln=True)
+        output_path = f"temp_{order_data.get('id', 'unknown')}.pdf"
+        pdf.output(output_path)
+        return output_path
+    
+    # Открываем шаблон
+    img = Image.open(template_path)
+    draw = ImageDraw.Draw(img)
+    
+    # Загружаем шрифт
+    try:
+        font = ImageFont.truetype("arial.ttf", 16)
+    except:
+        font = ImageFont.load_default()
+    
+    # Координаты полей (подбери под свой шаблон)
+    fields = {
+        'vehicle_type': (150, 350),
+        'brand': (150, 420),
+        'model': (150, 490),
+        'year': (150, 560),
+        'power': (150, 630),
+        'serial': (150, 700),
+        'full_name': (150, 800),
+        'passport': (150, 870),
+        'address': (150, 940),
+        'speed': (150, 1010),
+        'issue_date': (150, 1120),
+        'expiry_date': (400, 1120),
+        'registry_number': (150, 1220),
+        'doc_hash': (400, 1220),
+    }
+    
+    for field_name, (x, y) in fields.items():
+        value = order_data.get(field_name, '')
+        if value:
+            draw.text((x, y), str(value), fill="black", font=font)
+    
     output_path = f"temp_{order_data.get('id', 'unknown')}.pdf"
-    c = canvas.Canvas(output_path, pagesize=A4)
-    width, height = A4
-    
-    y = height - 50
-    
-    # Шапка
-    c.setFont("Helvetica-Bold", 18)
-    c.drawString(50, y, "RIDEPASS")
-    c.setFont("Helvetica", 10)
-    c.drawString(50, y - 20, "ЭЛЕКТРОННАЯ РЕГИСТРАЦИЯ СИМ")
-    
-    c.setFont("Helvetica-Bold", 14)
-    c.drawString(50, y - 50, "КАРТОЧКА ТРАНСПОРТНОГО СРЕДСТВА")
-    c.setFont("Helvetica", 10)
-    c.drawString(50, y - 70, "ПЕРСОНАЛЬНОЕ ЭЛЕКТРИЧЕСКОЕ ТРАНСПОРТНОЕ СРЕДСТВО")
-    
-    c.setFont("Helvetica", 9)
-    c.drawString(50, y - 95, "Реестровая запись в системе RidePass")
-    
-    # Таблица с серией, ID, номером
-    c.rect(50, y - 120, 150, 20)
-    c.rect(200, y - 120, 150, 20)
-    c.rect(350, y - 120, 150, 20)
-    c.setFont("Helvetica", 9)
-    c.drawString(55, y - 113, f"Серия RP: {order_data.get('series_rp', 'RP-XXXXX')}")
-    c.drawString(205, y - 113, f"ID: {order_data.get('doc_id', 'ID-XXXXX')}")
-    c.drawString(355, y - 113, f"№ записи: {order_data.get('record_number', 'XXXXX')}")
-    
-    y = y - 170
-    
-    # I. ОСНОВНЫЕ ДАННЫЕ
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(50, y, "I. ОСНОВНЫЕ ДАННЫЕ")
-    y -= 20
-    c.setFont("Helvetica", 10)
-    fields = [
-        f"1. Тип транспортного средства: {order_data.get('vehicle_type', '')}",
-        f"2. Категория: СИМ",
-        f"3. Марка: {order_data.get('brand', '')}",
-        f"4. Модель: {order_data.get('model', '')}",
-        f"5. Год выпуска: {order_data.get('year', '')}",
-        f"6. Идентификационный номер: {order_data.get('serial', '')}",
-        f"7. Мощность двигателя: {order_data.get('power', '')} Вт",
-        f"8. Максимальная скорость: {order_data.get('speed', '')} км/ч",
-    ]
-    for field in fields:
-        c.drawString(50, y, field)
-        y -= 15
-    
-    y -= 10
-    
-    # II. ДАННЫЕ О ВЛАДЕЛЬЦЕ
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(50, y, "II. ДАННЫЕ О ВЛАДЕЛЬЦЕ")
-    y -= 20
-    c.setFont("Helvetica", 10)
-    c.drawString(50, y, f"Фамилия, имя, отчество: {order_data.get('full_name', '')}")
-    y -= 15
-    c.drawString(50, y, f"Паспорт: {order_data.get('passport', '')}")
-    y -= 15
-    c.drawString(50, y, f"Адрес регистрации: {order_data.get('address', '')}")
-    
-    y -= 25
-    
-    # III. СРОК ДЕЙСТВИЯ
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(50, y, "III. СРОК ДЕЙСТВИЯ")
-    y -= 20
-    c.setFont("Helvetica", 10)
-    c.drawString(50, y, f"Дата выдачи: {order_data.get('issue_date', '')}")
-    c.drawString(200, y, f"Действительна до: {order_data.get('expiry_date', '')}")
-    
-    y -= 30
-    
-    # IV. СТАТУС
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(50, y, "IV. СТАТУС ТРАНСПОРТНОГО СРЕДСТВА")
-    y -= 20
-    c.setFont("Helvetica", 8)
-    c.drawString(50, y, "НЕ ТРЕБУЕТ ПОСТАНОВКИ НА УЧЕТ В ГИБДД")
-    c.drawString(210, y, "НЕ ТРЕБУЕТ ВОДИТЕЛЬСКОГО УДОСТОВЕРЕНИЯ")
-    c.drawString(380, y, "ДЛЯ ЛИЧНОГО ИСПОЛЬЗОВАНИЯ")
-    
-    y -= 40
-    
-    # V. СВЕДЕНИЯ О ДОКУМЕНТЕ
-    c.setFont("Helvetica-Bold", 11)
-    c.drawString(50, y, "V. СВЕДЕНИЯ О ДОКУМЕНТЕ")
-    y -= 20
-    c.setFont("Helvetica", 9)
-    c.drawString(50, y, f"РЕЕСТРОВЫЙ НОМЕР: {order_data.get('registry_number', '')}")
-    c.drawString(220, y, f"ДАТА ФОРМИРОВАНИЯ: {order_data.get('issue_date', '')}")
-    c.drawString(380, y, f"ХЕШ ДОКУМЕНТА: {order_data.get('doc_hash', '')}")
-    
-    # Подвал
-    y = 50
-    c.setFont("Helvetica", 8)
-    c.drawString(50, y, "Электронная регистрация средства индивидуальной мобильности")
-    c.drawString(50, y - 15, "Данный документ сформирован в электронном виде")
-    c.drawString(50, y - 30, "Проверка подлинности на сайте: ridepass.ru/check")
-    
-    c.save()
+    img.save(output_path, "PDF", resolution=100.0)
     return output_path
