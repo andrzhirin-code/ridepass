@@ -18,35 +18,41 @@ def generate_pdf(data: dict) -> str:
     font_normal = ImageFont.truetype(FONT_PATH, size=58)
     font_large = ImageFont.truetype(FONT_PATH, size=75)
 
-    Y_OFFSET = 25
-
+    # Координаты от Gemini (X=1080, Y с учетом Y_OFFSET)
     fields = {
-        "id": {"coords": (1240, 260 + Y_OFFSET), "font": font_large, "anchor": "ms"},
-        "vehicle_type": {"coords": (1100, 835 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
-        "brand": {"coords": (1100, 1025 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
-        "model": {"coords": (1100, 1120 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
-        "year": {"coords": (1100, 1215 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
-        "vin": {"coords": (1100, 1310 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
-        "power": {"coords": (1100, 1405 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
-        "max_speed": {"coords": (1100, 1500 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
-        "full_name": {"coords": (1100, 1720 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
-        "passport": {"coords": (1100, 1855 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
-        "address": {"coords": (1100, 1990 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
+        "id":           {"coords": (1240, 285), "font_type": "large", "anchor": "ms"},
+        "vehicle_type": {"coords": (1080, 860), "font_type": "normal", "anchor": "ls"},
+        "category":     {"coords": (1080, 955), "font_type": "normal", "anchor": "ls"},
+        "brand":        {"coords": (1080, 1050), "font_type": "normal", "anchor": "ls"},
+        "model":        {"coords": (1080, 1145), "font_type": "normal", "anchor": "ls"},
+        "year":         {"coords": (1080, 1240), "font_type": "normal", "anchor": "ls"},
+        "vin":          {"coords": (1080, 1335), "font_type": "normal", "anchor": "ls"},
+        "power":        {"coords": (1080, 1430), "font_type": "normal", "anchor": "ls"},
+        "max_speed":    {"coords": (1080, 1525), "font_type": "normal", "anchor": "ls"},
+        "full_name":    {"coords": (1080, 1745), "font_type": "normal", "anchor": "ls"},
+        "passport":     {"coords": (1080, 1880), "font_type": "normal", "anchor": "ls"},
+        "address":      {"coords": (1080, 2015), "font_type": "normal", "anchor": "ls"},
     }
 
-    # Категория всегда "СИМ"
-    draw.text((1100, 930 + Y_OFFSET), "СИМ", fill=(0, 0, 0), font=font_normal, anchor="ls")
+    for field_name, config in fields.items():
+        # Категория всегда "СИМ"
+        if field_name == "category":
+            text_value = "СИМ"
+        else:
+            text_value = str(data.get(field_name, ""))
+        
+        if not text_value or text_value == "None":
+            continue
 
-    for key, config in fields.items():
-        value = data.get(key, "")
-        if value:
-            draw.text(
-                xy=config["coords"],
-                text=str(value),
-                fill=(0, 0, 0),
-                font=config["font"],
-                anchor=config["anchor"]
-            )
+        current_font = font_large if config["font_type"] == "large" else font_normal
+
+        draw.text(
+            xy=config["coords"],
+            text=text_value,
+            fill=(15, 25, 35),
+            font=current_font,
+            anchor=config["anchor"]
+        )
 
     output_path = os.path.join(BASE_DIR, f"order_{data.get('id', 'temp')}.pdf")
     img.save(output_path, "PDF", resolution=300.0, quality=100)
