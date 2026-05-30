@@ -342,6 +342,11 @@ async def handle_admin(callback: CallbackQuery):
     order_id = int(order_id_str)
     order = get_order(order_id)
     
+    # ========== ОТЛАДКА ==========
+    print(f"=== ОТЛАДКА: order = {order}")
+    print(f"=== Тип данных: {type(order)}")
+    # ==============================
+    
     if not order:
         await callback.message.edit_text(f"❌ Заявка #{order_id} не найдена")
         return
