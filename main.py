@@ -357,7 +357,7 @@ async def handle_admin(callback: CallbackQuery):
                     return "—"
                 return str(val).strip()
             
-            # Сбор данных с проверкой (сверьте индексы с вашей БД!)
+            # Сбор данных для PDF
             order_data = {
                 "id": get_clean(order[0]),
                 "vehicle_type": get_clean(order[5]),
@@ -383,6 +383,7 @@ async def handle_admin(callback: CallbackQuery):
             
         except Exception as e:
             await callback.message.edit_text(f"❌ Ошибка: {e}")
+            print(f"Ошибка в approve: {e}")
             
     elif action == "reject":
         update_order_status(order_id, "rejected")
