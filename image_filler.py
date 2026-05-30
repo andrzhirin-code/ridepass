@@ -30,9 +30,9 @@ def fill_order_template(
     font_large = ImageFont.truetype(FONT_PATH, size=75)
 
     Y_OFF = 25
-    X_VAL = 1100
+    X_VAL = 1300
 
-    # Шапка (Номер записи)
+    # Шапка
     if order_id:
         draw.text((2100, 260 + Y_OFF), str(order_id), fill=(26, 36, 43), font=font_large, anchor="ms")
 
