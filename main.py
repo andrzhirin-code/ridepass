@@ -351,27 +351,28 @@ async def handle_admin(callback: CallbackQuery):
             today = datetime.now().strftime("%d.%m.%Y")
             expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
             
-            def clean_val(value):
-                if value is None or str(value).strip() == "" or str(value).strip().lower() in ["none", "null"]:
+            # Функция очистки пустых значений
+            def get_clean(val):
+                if val is None or str(val).strip() == "" or str(val).strip().lower() in ["none", "null"]:
                     return "—"
-                return str(value).strip()
+                return str(val).strip()
             
-            # ИСПРАВЛЕНО: id → order_id
-            pdf_path = await asyncio.to_thread(
-                fill_order_template,
-                order_id=str(order[0]),
-                vehicle_type=clean_val(order[5]),
-                brand=clean_val(order[6]),
-                model=clean_val(order[7]),
-                year=clean_val(order[8]),
-                vin=clean_val(order[9]),
-                power=clean_val(order[10]),
-                max_speed=clean_val(order[11]),
-                full_name=clean_val(order[2]),
-                passport=clean_val(order[3]),
-                address=clean_val(order[4]),
-            )
+            # Сбор данных с проверкой (сверьте индексы с вашей БД!)
+            order_data = {
+                "id": get_clean(order[0]),
+                "vehicle_type": get_clean(order[5]),
+                "brand": get_clean(order[6]),
+                "model": get_clean(order[7]),
+                "year": get_clean(order[8]),
+                "vin": get_clean(order[9]),
+                "power": get_clean(order[10]),
+                "max_speed": get_clean(order[11]),
+                "full_name": get_clean(order[2]),
+                "passport": get_clean(order[3]),
+                "address": get_clean(order[4]),
+            }
             
+            pdf_path = await asyncio.to_thread(fill_order_template, order_data)
             document = FSInputFile(pdf_path)
             await bot.send_document(order[1], document, caption="✅ Ваш платеж подтверждён! Документы готовы.")
             
