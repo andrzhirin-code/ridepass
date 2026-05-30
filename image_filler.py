@@ -14,19 +14,20 @@ def fill_order_template(data: dict) -> str:
     doc = fitz.open(TEMPLATE_PATH)
     page = doc[0]
 
+    # Тестовые значения, если данные пустые
     form_data = {
-        "id": str(data.get("id", "—")),
-        "vehicle_type": str(data.get("vehicle_type", "—")),
+        "id": str(data.get("id", "1")),
+        "vehicle_type": str(data.get("vehicle_type", "Электросамокат")),
         "category": "СИМ",
-        "brand": str(data.get("brand", "—")),
-        "model": str(data.get("model", "—")),
-        "year": str(data.get("year", "—")),
-        "vin": str(data.get("vin", "—")),
-        "power": str(data.get("power", "—")),
-        "max_speed": str(data.get("max_speed", "—")),
-        "full_name": str(data.get("full_name", "—")),
-        "passport": str(data.get("passport", "—")),
-        "address": str(data.get("address", "—")),
+        "brand": str(data.get("brand", "Тест Марка")),
+        "model": str(data.get("model", "Тест Модель")),
+        "year": str(data.get("year", "2026")),
+        "vin": str(data.get("vin", "TEST-VIN-12345")),
+        "power": str(data.get("power", "3000W")),
+        "max_speed": str(data.get("max_speed", "55 км/ч")),
+        "full_name": str(data.get("full_name", "Иванов Иван Иванович")),
+        "passport": str(data.get("passport", "4512 123456")),
+        "address": str(data.get("address", "г. Москва, ул. Ленина, д. 1")),
     }
 
     text_queue = []
@@ -47,7 +48,7 @@ def fill_order_template(data: dict) -> str:
     page.insert_font(fontname="ari", fontfile=FONT_PATH)
 
     for item in text_queue:
-        font_size = 14 if item.get("is_id") else 11
+        font_size = 14 if item["is_id"] else 11
         page.insert_text(
             item["point"],
             item["text"],
@@ -56,7 +57,7 @@ def fill_order_template(data: dict) -> str:
             color=(0.12, 0.16, 0.2)
         )
 
-    output_path = os.path.join(BASE_DIR, f"order_{data.get('id', 'temp')}.pdf")
+    output_path = os.path.join(BASE_DIR, f"order_{data.get('id', '1')}.pdf")
     doc.save(output_path, garbage=3, deflate=True)
     doc.close()
     return output_path
