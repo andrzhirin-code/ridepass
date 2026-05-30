@@ -358,12 +358,12 @@ async def handle_admin(callback: CallbackQuery):
                 brand=str(order[3]),
                 model=str(order[4]),
                 year=str(order[5]),
-                vin=str(order[7]),
-                power=str(order[6]),
-                max_speed=str(order[12]),
-                full_name=str(order[8]),
-                passport=str(order[9]),
-                address=str(order[10])
+                vin=str(order[6]),
+                power=str(order[7]),
+                max_speed=str(order[8]),
+                full_name=str(order[9]),
+                passport=str(order[10]),
+                address=str(order[12])
             )
             
             document = FSInputFile(pdf_path)
@@ -379,7 +379,7 @@ async def handle_admin(callback: CallbackQuery):
             
     elif action == "reject":
         update_order_status(order_id, "rejected")
-        await bot.send_message(order[1], "❌ Платёж не подтверждён. Свяжитесь с поддержкой.")
+        await bot.send_message(order[1], "❌ Платёж не подтвержден. Свяжитесь с поддержкой.")
         await callback.message.edit_text(f"❌ Заявка #{order_id} отклонена.")
 
 # ========== РЕФЕРАЛКА ==========
