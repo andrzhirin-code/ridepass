@@ -26,30 +26,30 @@ def fill_order_template(
     img = Image.open(TEMPLATE_PATH).convert("RGB")
     draw = ImageDraw.Draw(img)
 
-    font_normal = ImageFont.truetype(FONT_PATH, size=42)
+    font_normal = ImageFont.truetype(FONT_PATH, size=40)
     font_large = ImageFont.truetype(FONT_PATH, size=55)
 
-    Y_OFF = 18
-    X_VAL = 1050
+    Y_OFF = 15
+    X_VAL = 1080
 
-    # Шапка (№ записи)
+    # Шапка (ID)
     if order_id:
         draw.text((1950, 265 + Y_OFF), str(order_id), fill=(26, 36, 43), font=font_large, anchor="ms")
 
-    # Раздел I (Y от 1475 до 2140)
-    draw.text((X_VAL, 1475 + Y_OFF), str(vehicle_type), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 1570 + Y_OFF), "СИМ", fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 1665 + Y_OFF), str(brand), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 1760 + Y_OFF), str(model), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 1855 + Y_OFF), str(year), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 1950 + Y_OFF), str(vin), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 2045 + Y_OFF), str(power), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 2140 + Y_OFF), str(max_speed), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    # Раздел I
+    draw.text((X_VAL, 583 + Y_OFF), str(vehicle_type), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 630 + Y_OFF), "СИМ", fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 678 + Y_OFF), str(brand), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 725 + Y_OFF), str(model), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 773 + Y_OFF), str(year), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 820 + Y_OFF), str(vin), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 868 + Y_OFF), str(power), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 915 + Y_OFF), str(max_speed), fill=(26, 36, 43), font=font_normal, anchor="ls")
 
-    # Раздел II (Y от 2370 до 2660)
-    draw.text((X_VAL, 2370 + Y_OFF), str(full_name), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 2515 + Y_OFF), str(passport), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 2660 + Y_OFF), str(address), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    # Раздел II
+    draw.text((X_VAL, 1038 + Y_OFF), str(full_name), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 1105 + Y_OFF), str(passport), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 1173 + Y_OFF), str(address), fill=(26, 36, 43), font=font_normal, anchor="ls")
 
     output_path = os.path.join(BASE_DIR, f"order_{order_id}.pdf")
     img.save(output_path, "PDF", resolution=300.0, quality=100)
