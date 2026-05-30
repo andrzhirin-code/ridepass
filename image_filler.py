@@ -10,24 +10,26 @@ def fill_order_template(data: dict) -> str:
 
     doc = fitz.open(TEMPLATE_PATH)
 
+    # 1. Заполняем поля
     for page in doc:
         for widget in page.widgets():
             name = widget.field_name
             if not name:
                 continue
-            
             if name in data:
                 widget.field_value = str(data[name])
                 widget.update()
             elif name.lower() == "category":
                 widget.field_value = "СИМ"
                 widget.update()
-        
-        doc.reload_page(page.number)
 
+    # 2. Перезагружаем каждую страницу
+    for i in range(len(doc)):
+        doc.reload_page(i)
+
+    # 3. Запекаем форму
     for page in doc:
         try:
-            page = doc.reload_page(page.number)
             page.bake()
         except:
             pass
