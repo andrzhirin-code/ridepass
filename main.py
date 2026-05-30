@@ -351,23 +351,29 @@ async def handle_admin(callback: CallbackQuery):
             today = datetime.now().strftime("%d.%m.%Y")
             expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
             
-            def get_clean(val):
-                if val is None or str(val).strip() == "" or str(val).strip().lower() in ["none", "null"]:
-                    return "—"
-                return str(val).strip()
+            # Универсальное извлечение данных (словарь или кортеж)
+            def extract(obj, index, key_name):
+                if isinstance(obj, dict):
+                    return obj.get(key_name, "")
+                elif isinstance(obj, (tuple, list)):
+                    try:
+                        return obj[index]
+                    except IndexError:
+                        return ""
+                return ""
             
             order_data = {
-                "id": get_clean(order[0]),
-                "vehicle_type": get_clean(order[1]),
-                "brand": get_clean(order[2]),
-                "model": get_clean(order[3]),
-                "year": get_clean(order[4]),
-                "vin": get_clean(order[5]),
-                "power": get_clean(order[6]),
-                "max_speed": get_clean(order[7]),
-                "full_name": get_clean(order[8]),
-                "passport": get_clean(order[9]),
-                "address": get_clean(order[10]),
+                "id": extract(order, 0, "id"),
+                "vehicle_type": extract(order, 1, "vehicle_type"),
+                "brand": extract(order, 2, "brand"),
+                "model": extract(order, 3, "model"),
+                "year": extract(order, 4, "year"),
+                "vin": extract(order, 5, "vin"),
+                "power": extract(order, 6, "power"),
+                "max_speed": extract(order, 7, "max_speed"),
+                "full_name": extract(order, 8, "full_name"),
+                "passport": extract(order, 9, "passport"),
+                "address": extract(order, 10, "address"),
             }
             
             pdf_path = await asyncio.to_thread(fill_order_template, order_data)
