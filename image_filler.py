@@ -1,59 +1,56 @@
 import os
-import asyncio
 from PIL import Image, ImageDraw, ImageFont
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FONT_PATH = os.path.join(BASE_DIR, "ARIALBD.TTF")
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template.png")
 
-def generate_pdf(data: dict) -> str:
+def fill_order_template(
+    order_id: str,
+    vehicle_type: str,
+    brand: str,
+    model: str,
+    year: str,
+    vin: str,
+    power: str,
+    max_speed: str,
+    full_name: str,
+    passport: str,
+    address: str
+) -> str:
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
     if not os.path.exists(FONT_PATH):
         raise FileNotFoundError(f"Шрифт не найден: {FONT_PATH}")
-
+        
     img = Image.open(TEMPLATE_PATH).convert("RGB")
     draw = ImageDraw.Draw(img)
 
     font_normal = ImageFont.truetype(FONT_PATH, size=58)
-    font_large = ImageFont.truetype(FONT_PATH, size=70)
+    font_large = ImageFont.truetype(FONT_PATH, size=75)
 
-    # Координаты от Gemini (X=1080, Y с учетом Y_OFFSET=25)
-    fields = {
-        # Шапка
-        "id":           {"coords": (2100, 355), "font": font_large, "anchor": "ms"},
-        # Раздел I
-        "vehicle_type": {"coords": (1080, 860), "font": font_normal, "anchor": "ls"},
-        "category":     {"coords": (1080, 955), "font": font_normal, "anchor": "ls"},
-        "brand":        {"coords": (1080, 1050), "font": font_normal, "anchor": "ls"},
-        "model":        {"coords": (1080, 1145), "font": font_normal, "anchor": "ls"},
-        "year":         {"coords": (1080, 1240), "font": font_normal, "anchor": "ls"},
-        "vin":          {"coords": (1080, 1335), "font": font_normal, "anchor": "ls"},
-        "power":        {"coords": (1080, 1430), "font": font_normal, "anchor": "ls"},
-        "max_speed":    {"coords": (1080, 1525), "font": font_normal, "anchor": "ls"},
-        # Раздел II
-        "full_name":    {"coords": (1080, 1745), "font": font_normal, "anchor": "ls"},
-        "passport":     {"coords": (1080, 1880), "font": font_normal, "anchor": "ls"},
-        "address":      {"coords": (1080, 2015), "font": font_normal, "anchor": "ls"},
-    }
+    Y_OFF = 25
+    X_VAL = 1100
 
-    for field_name, config in fields.items():
-        if field_name == "category":
-            text_value = "СИМ"
-        else:
-            text_value = str(data.get(field_name, ""))
-        
-        if not text_value or text_value == "None":
-            continue
+    # Шапка (Номер записи)
+    if order_id:
+        draw.text((2100, 260 + Y_OFF), str(order_id), fill=(26, 36, 43), font=font_large, anchor="ms")
 
-        draw.text(
-            xy=config["coords"],
-            text=text_value,
-            fill=(30, 40, 50),
-            font=config["font"],
-            anchor=config["anchor"]
-        )
+    # Раздел I. ОСНОВНЫЕ ДАННЫЕ
+    draw.text((X_VAL, 835 + Y_OFF), str(vehicle_type), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 930 + Y_OFF), "СИМ", fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 1025 + Y_OFF), str(brand), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 1120 + Y_OFF), str(model), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 1215 + Y_OFF), str(year), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 1310 + Y_OFF), str(vin), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 1405 + Y_OFF), str(power), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 1500 + Y_OFF), str(max_speed), fill=(26, 36, 43), font=font_normal, anchor="ls")
 
-    output_path = os.path.join(BASE_DIR, f"order_{data.get('id', 'temp')}.pdf")
+    # Раздел II. ДАННЫЕ О ВЛАДЕЛЬЦЕ
+    draw.text((X_VAL, 1720 + Y_OFF), str(full_name), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 1855 + Y_OFF), str(passport), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 1990 + Y_OFF), str(address), fill=(26, 36, 43), font=font_normal, anchor="ls")
+
+    output_path = os.path.join(BASE_DIR, f"order_{order_id}.pdf")
     img.save(output_path, "PDF", resolution=300.0, quality=100)
     return output_path
