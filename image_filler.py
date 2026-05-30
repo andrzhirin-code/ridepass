@@ -45,8 +45,8 @@ def fill_order_template(
                 field.update()
                 break
 
-    # Удаляем все рамки и фоны
-    page.bake_form_fields()
+    # ГЛАВНОЕ ИСПРАВЛЕНИЕ: bake() у документа, а не у страницы
+    doc.bake()
 
     output_path = os.path.join(BASE_DIR, f"order_{order_id}.pdf")
     doc.save(output_path, garbage=3, deflate=True)
