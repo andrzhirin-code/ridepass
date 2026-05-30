@@ -320,16 +320,17 @@ async def i_paid(message: types.Message):
         
         await bot.send_message(ADMIN_ID, text, reply_markup=kb)
 
-# ========== ИСПРАВЛЕННЫЙ ОБРАБОТЧИК КНОПОК ==========
 @dp.callback_query()
-async def handle_admin(callback: CallbackQuery):
-    # ОБЯЗАТЕЛЬНАЯ СТРОКА — подтверждаем получение callback
+async def handle_callback(callback: CallbackQuery):
+    # Обязательный ответ Telegram
     await callback.answer()
     
+    # Проверка прав
     if callback.from_user.id != ADMIN_ID:
         await callback.message.answer("У вас нет прав")
         return
     
+    # Разбор данных
     action, order_id_str = callback.data.split("_")
     order_id = int(order_id_str)
     order = get_order(order_id)
@@ -404,7 +405,7 @@ async def main():
     init_db()
     await bot.delete_webhook(drop_pending_updates=True)
     
-    # Запускаем healthcheck сервер для Render
+    # Запускаем healthcheck сервер для Render (обязательно)
     app = web.Application()
     app.router.add_get("/", lambda request: web.Response(text="OK"))
     runner = web.AppRunner(app)
