@@ -104,7 +104,7 @@ async def back_to_menu(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer("Вы вернулись в главное меню", reply_markup=main_menu)
 
-# ========== ПОЛУЧИТЬ ДОКУМЕНТЫ ==========
+# ========== ПОЛУЧИТЬ ДОКУМЕНТЫ (ВЕСЬ FSM КОД) ==========
 @dp.message(F.text == "Получить документы")
 async def get_documents(message: types.Message, state: FSMContext):
     await state.set_state(Form.vehicle_type)
@@ -263,7 +263,6 @@ async def process_phone(message: types.Message, state: FSMContext):
         await state.set_state(Form.speed)
         await message.answer("11. Введите максимальную скорость (км/ч):", reply_markup=back_button)
 
-# ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ SPEED ==========
 @dp.message(Form.speed)
 async def process_speed(message: types.Message, state: FSMContext):
     if message.text == "Назад":
@@ -304,7 +303,7 @@ async def process_speed(message: types.Message, state: FSMContext):
         )
         await state.clear()
 
-# ========== ОБРАБОТЧИК "Я ОПЛАТИЛ" ==========
+# ========== ОБРАБОТЧИК "Я ОПЛАТИЛ" (ОТПРАВКА ЗАЯВКИ АДМИНУ С КНОПКАМИ) ==========
 @dp.message(F.text == "Я оплатил")
 async def i_paid(message: types.Message):
     await message.answer(
@@ -314,7 +313,6 @@ async def i_paid(message: types.Message):
     )
     
     pending = get_pending_orders()
-    
     for order in pending:
         order_id = order[0]
         text = (
@@ -339,28 +337,29 @@ async def i_paid(message: types.Message):
         
         await bot.send_message(ADMIN_ID, text, reply_markup=kb)
 
-# ========== ОБРАБОТЧИК КНОПОК АДМИНА ==========
+# ========== ОБРАБОТЧИК НАЖАТИЙ НА КНОПКИ (ИСПРАВЛЕН И ДОБАВЛЕН) ==========
 @dp.callback_query()
-async def handle_admin_actions(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        await call.answer("У вас нет прав для этого действия.", show_alert=True)
+async def process_callback(callback_query: types.CallbackQuery):
+    # Проверяем, что нажавший - администратор
+    if callback_query.from_user.id != ADMIN_ID:
+        await callback_query.answer("У вас нет прав.", show_alert=True)
         return
-    
-    action, order_id_str = call.data.split("_")
+
+    # Разбираем данные из callback_data (например, "approve_1")
+    action, order_id_str = callback_query.data.split("_")
     order_id = int(order_id_str)
     order = get_order(order_id)
-    
+
     if not order:
-        await call.message.edit_text(f"❌ Заявка #{order_id} не найдена.")
-        await call.answer()
+        await callback_query.message.edit_text(f"❌ Заявка #{order_id} не найдена.")
+        await callback_query.answer()
         return
-    
+
     if action == "approve":
+        # Логика подтверждения
         update_order_status(order_id, "approved")
-        
         today = datetime.now().strftime("%d.%m.%Y")
         expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
-        
         order_data = {
             "id": order_id,
             "vehicle_type": order[2],
@@ -382,19 +381,18 @@ async def handle_admin_actions(call: types.CallbackQuery):
             "issue_date": today,
             "expiry_date": expiry,
         }
-        
         pdf_path = generate_pdf(order_data)
         with open(pdf_path, "rb") as pdf:
             await bot.send_document(order[1], pdf, caption="✅ Ваш платеж подтверждён! Документы готовы.")
-        
-        await call.message.edit_text(f"✅ Заявка #{order_id} подтверждена. PDF отправлен.")
-        await call.answer("Заявка подтверждена!")
-        
+        await callback_query.message.edit_text(f"✅ Заявка #{order_id} подтверждена.")
+        await callback_query.answer("Заявка подтверждена!")
+
     elif action == "reject":
+        # Логика отклонения
         update_order_status(order_id, "rejected")
         await bot.send_message(order[1], "❌ Платёж не подтверждён. Свяжитесь с поддержкой.")
-        await call.message.edit_text(f"❌ Заявка #{order_id} отклонена.")
-        await call.answer("Заявка отклонена.")
+        await callback_query.message.edit_text(f"❌ Заявка #{order_id} отклонена.")
+        await callback_query.answer("Заявка отклонена.")
 
 # ========== РЕФЕРАЛКА ==========
 @dp.message(F.text == "Заработай с нами/реферальная система")
