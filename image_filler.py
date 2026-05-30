@@ -4,6 +4,7 @@ import os
 def generate_pdf(order_data):
     template_path = "template.png"
     
+    # Если нет шаблона — создаём простой PDF через fpdf2
     if not os.path.exists(template_path):
         from fpdf import FPDF
         pdf = FPDF()
@@ -15,58 +16,38 @@ def generate_pdf(order_data):
         pdf.output(output_path)
         return output_path
     
+    # Открываем шаблон
     img = Image.open(template_path)
     draw = ImageDraw.Draw(img)
     
-    # Загружаем стандартный шрифт (он поддерживает кириллицу в последних версиях PIL)
-    # Увеличиваем размер через масштабирование
+    # Загружаем шрифт
     try:
-        font = ImageFont.truetype("arial.ttf", 72)
+        font = ImageFont.truetype("arial.ttf", 20)
     except:
-        # Если arial.ttf нет, используем дефолтный, но его размер фиксирован
         font = ImageFont.load_default()
     
-    # Цвет текста — чёрный (фон белый)
-    text_color = (0, 0, 0)
+    width, height = img.size
+    print(f"Размер шаблона: {width}x{height}")
     
-    # КООРДИНАТЫ ДЛЯ A4 (2480×3508 px)
-    # Основано на структуре твоего шаблона
-    x = 300      # отступ слева
-    y_start = 600
-    step = 85    # шаг между строками
+    # ========== РИСУЕМ СЕТКУ ==========
+    # Красные линии каждые 100 пикселей
+    for x in range(0, width, 100):
+        draw.line((x, 0, x, height), fill="red", width=2)
+    for y in range(0, height, 100):
+        draw.line((0, y, width, y), fill="red", width=2)
     
-    # Шапка (Серия RP, ID, № записи)
-    draw.text((300, 350), order_data.get('series_rp', ''), fill=text_color, font=font)
-    draw.text((600, 350), order_data.get('doc_id', ''), fill=text_color, font=font)
-    draw.text((900, 350), order_data.get('record_number', ''), fill=text_color, font=font)
+    # Синие координаты
+    for x in range(0, width, 100):
+        for y in range(0, height, 100):
+            draw.text((x + 5, y + 5), f"{x},{y}", fill="blue", font=font)
     
-    # I. ОСНОВНЫЕ ДАННЫЕ
-    draw.text((x, y_start), order_data.get('vehicle_type', ''), fill=text_color, font=font)
-    draw.text((x, y_start + step), "СИМ", fill=text_color, font=font)
-    draw.text((x, y_start + step * 2), order_data.get('brand', ''), fill=text_color, font=font)
-    draw.text((x, y_start + step * 3), order_data.get('model', ''), fill=text_color, font=font)
-    draw.text((x, y_start + step * 4), order_data.get('year', ''), fill=text_color, font=font)
-    draw.text((x, y_start + step * 5), order_data.get('serial', ''), fill=text_color, font=font)
-    draw.text((x, y_start + step * 6), f"{order_data.get('power', '')} Вт", fill=text_color, font=font)
-    draw.text((x, y_start + step * 7), f"{order_data.get('speed', '')} км/ч", fill=text_color, font=font)
-    
-    # II. ДАННЫЕ О ВЛАДЕЛЬЦЕ
-    y_owner = y_start + step * 10
-    draw.text((x, y_owner), order_data.get('full_name', ''), fill=text_color, font=font)
-    draw.text((x, y_owner + step), order_data.get('passport', ''), fill=text_color, font=font)
-    draw.text((x, y_owner + step * 2), order_data.get('address', ''), fill=text_color, font=font)
-    
-    # III. СРОК ДЕЙСТВИЯ
-    y_dates = y_start + step * 15
-    draw.text((x, y_dates), order_data.get('issue_date', ''), fill=text_color, font=font)
-    draw.text((x + 300, y_dates), order_data.get('expiry_date', ''), fill=text_color, font=font)
-    
-    # V. СВЕДЕНИЯ О ДОКУМЕНТЕ
-    y_reg = y_start + step * 19
-    draw.text((x, y_reg), order_data.get('registry_number', ''), fill=text_color, font=font)
-    draw.text((x + 350, y_reg), order_data.get('issue_date', ''), fill=text_color, font=font)
-    draw.text((x + 700, y_reg), order_data.get('doc_hash', ''), fill=text_color, font=font)
+    # ========== ВРЕМЕННЫЕ ДАННЫЕ ДЛЯ ТЕСТА ==========
+    # (чтобы видеть, куда попадает текст)
+    draw.text((100, 100), "ТЕСТОВЫЙ ТЕКСТ (100,100)", fill="black", font=font)
+    draw.text((300, 500), "ТЕСТ (300,500)", fill="black", font=font)
+    draw.text((500, 800), "ТЕСТ (500,800)", fill="black", font=font)
     
     output_path = f"temp_{order_data.get('id', 'unknown')}.pdf"
     img.save(output_path, "PDF", resolution=300)
+    print(f"PDF с сеткой сохранён: {output_path}")
     return output_path
