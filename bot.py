@@ -423,6 +423,8 @@ async def support(message: types.Message):
 # ========== ЗАПУСК ==========
 async def main():
     init_db()
+    # Принудительно удаляем вебхук — решает проблему Conflict на Render
+    await bot.delete_webhook(drop_pending_updates=True)
     print("🤖 Бот RidePass успешно запущен!")
     await dp.start_polling(bot)
 
