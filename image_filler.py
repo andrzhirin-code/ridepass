@@ -35,10 +35,8 @@ def fill_order_template(data: dict) -> str:
                 field.field_value = str(value)
                 field.update()
 
-    # Вместо page.bake() используем flatten()
-    page.flatten()
-
+    # Убираем bake/flatten — просто сохраняем
     output_path = os.path.join(BASE_DIR, f"order_{data.get('id', '1')}.pdf")
-    doc.save(output_path, garbage=4, clean=True, deflate=True)
+    doc.save(output_path, garbage=4, deflate=True)
     doc.close()
     return output_path
