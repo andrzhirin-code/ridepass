@@ -6,7 +6,11 @@ from aiogram.filters import Command
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import ReplyKeyboardMarkup, KeyboardButton, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import (
+    ReplyKeyboardMarkup, KeyboardButton, 
+    InlineKeyboardMarkup, InlineKeyboardButton,
+    CallbackQuery
+)
 from aiohttp import web
 
 from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance
@@ -316,19 +320,20 @@ async def i_paid(message: types.Message):
         
         await bot.send_message(ADMIN_ID, text, reply_markup=kb)
 
+# ========== ИСПРАВЛЕННЫЙ ОБРАБОТЧИК КНОПОК ==========
 @dp.callback_query()
-async def handle_admin(call: types.CallbackQuery):
-    if call.from_user.id != ADMIN_ID:
-        await call.answer("У вас нет прав", show_alert=True)
+async def handle_admin(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("У вас нет прав", show_alert=True)
         return
     
-    action, order_id_str = call.data.split("_")
+    action, order_id_str = callback.data.split("_")
     order_id = int(order_id_str)
     order = get_order(order_id)
     
     if not order:
-        await call.message.edit_text(f"❌ Заявка #{order_id} не найдена")
-        await call.answer()
+        await callback.message.edit_text(f"❌ Заявка #{order_id} не найдена")
+        await callback.answer()
         return
     
     if action == "approve":
@@ -362,14 +367,14 @@ async def handle_admin(call: types.CallbackQuery):
         with open(pdf_path, "rb") as pdf:
             await bot.send_document(order[1], pdf, caption="✅ Ваш платеж подтверждён! Документы готовы.")
         
-        await call.message.edit_text(f"✅ Заявка #{order_id} подтверждена")
-        await call.answer("Заявка подтверждена")
+        await callback.message.edit_text(f"✅ Заявка #{order_id} подтверждена. PDF отправлен.")
+        await callback.answer("Заявка подтверждена!")
         
     elif action == "reject":
         update_order_status(order_id, "rejected")
         await bot.send_message(order[1], "❌ Платёж не подтверждён. Свяжитесь с поддержкой.")
-        await call.message.edit_text(f"❌ Заявка #{order_id} отклонена")
-        await call.answer("Заявка отклонена")
+        await callback.message.edit_text(f"❌ Заявка #{order_id} отклонена.")
+        await callback.answer("Заявка отклонена.")
 
 @dp.message(F.text == "Заработай с нами/реферальная система")
 async def referral(message: types.Message):
@@ -395,12 +400,11 @@ async def support(message: types.Message):
         reply_markup=main_menu
     )
 
-# ========== ЗАПУСК ==========
 async def main():
     init_db()
     await bot.delete_webhook(drop_pending_updates=True)
     
-    # Запускаем healthcheck сервер на порту 8080
+    # Запускаем healthcheck сервер для Render
     app = web.Application()
     app.router.add_get("/", lambda request: web.Response(text="OK"))
     runner = web.AppRunner(app)
