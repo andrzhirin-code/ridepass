@@ -351,7 +351,6 @@ async def handle_admin(callback: CallbackQuery):
             today = datetime.now().strftime("%d.%m.%Y")
             expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
             
-            # ЯВНОЕ СОПОСТАВЛЕНИЕ ИНДЕКСОВ (поправь по своим данным)
             pdf_path = await asyncio.to_thread(
                 fill_order_template,
                 order_id=str(order[0]),
