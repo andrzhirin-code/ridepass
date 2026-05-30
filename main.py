@@ -1,5 +1,6 @@
 import asyncio
 import os
+import sys
 import logging
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
@@ -17,6 +18,14 @@ from aiohttp import web
 
 from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance
 from image_filler import fill_order_template
+
+# ========== НАСТРОЙКА ЛОГОВ В ФАЙЛ ==========
+logging.basicConfig(
+    filename='bot.log',
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+# ============================================
 
 API_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
 ADMIN_ID = 5171781123
@@ -332,9 +341,12 @@ async def i_paid(message: types.Message):
 # ========== ОБРАБОТЧИК КНОПОК ==========
 @dp.callback_query()
 async def handle_admin(callback: CallbackQuery):
+    logging.info(f"=== ХЭНДЛЕР ВЫЗВАН, user_id={callback.from_user.id}, ADMIN_ID={ADMIN_ID} ===")
+    
     await callback.answer()
     
     if callback.from_user.id != ADMIN_ID:
+        logging.warning(f"Доступ запрещён: {callback.from_user.id} != {ADMIN_ID}")
         await callback.message.answer("У вас нет прав")
         return
     
@@ -342,12 +354,11 @@ async def handle_admin(callback: CallbackQuery):
     order_id = int(order_id_str)
     order = get_order(order_id)
     
-    # ========== ОТЛАДКА ==========
-    print(f"=== DEBUG: order = {order}")
-    print(f"=== DEBUG: type = {type(order)}")
-    # ==============================
+    logging.info(f"ORDER RAW: {order}")
+    logging.info(f"ORDER TYPE: {type(order)}")
     
     if not order:
+        logging.error(f"Заявка #{order_id} не найдена")
         await callback.message.edit_text(f"❌ Заявка #{order_id} не найдена")
         return
     
@@ -380,6 +391,8 @@ async def handle_admin(callback: CallbackQuery):
                 "address": extract(order, 10, "address"),
             }
             
+            logging.info(f"order_data: {order_data}")
+            
             pdf_path = await asyncio.to_thread(fill_order_template, order_data)
             document = FSInputFile(pdf_path)
             await bot.send_document(order[1], document, caption="✅ Ваш платеж подтверждён! Документы готовы.")
@@ -390,6 +403,7 @@ async def handle_admin(callback: CallbackQuery):
             await callback.message.edit_text(f"✅ Заявка #{order_id} подтверждена. PDF отправлен.")
             
         except Exception as e:
+            logging.error(f"Ошибка в approve: {e}")
             await callback.message.edit_text(f"❌ Ошибка: {e}")
             
     elif action == "reject":
@@ -428,9 +442,11 @@ async def on_startup():
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(WEBHOOK_URL, allowed_updates=["message", "callback_query"])
     print(f"Webhook set to {WEBHOOK_URL}")
+    logging.info(f"Webhook set to {WEBHOOK_URL}")
 
 async def main():
     init_db()
+    logging.info("Бот запущен")
     
     app = web.Application()
     
