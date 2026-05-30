@@ -1,6 +1,6 @@
 import asyncio
-import logging
 import os
+import logging
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -10,8 +10,9 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton, 
     InlineKeyboardMarkup, InlineKeyboardButton,
-    CallbackQuery, Update
+    CallbackQuery
 )
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
 from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance
@@ -20,9 +21,10 @@ from image_filler import generate_pdf
 API_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
 ADMIN_ID = 5171781123
 
+# Render порт (обязательно из переменной окружения)
+PORT = int(os.getenv("PORT", 10000))
 WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
 WEBHOOK_URL = f"https://ridepass.onrender.com{WEBHOOK_PATH}"
-PORT = int(os.environ.get("PORT", 10000))
 
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
@@ -321,6 +323,8 @@ async def i_paid(message: types.Message):
             f"💨 Скорость: {order[12]} км/ч"
         )
         
+        # ⚠️ ВАЖНО: callback_data не должен превышать 64 байта
+        # order_id у вас маленький, всё в порядке
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"approve_{order_id}")],
             [InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{order_id}")]
@@ -328,6 +332,7 @@ async def i_paid(message: types.Message):
         
         await bot.send_message(ADMIN_ID, text, reply_markup=kb)
 
+# ========== ОБРАБОТЧИК КНОПОК ==========
 @dp.callback_query()
 async def handle_callback(callback: CallbackQuery):
     await callback.answer()
@@ -406,13 +411,7 @@ async def support(message: types.Message):
         reply_markup=main_menu
     )
 
-# ========== WEBHOOK ОБРАБОТЧИК ==========
-async def handle_webhook(request):
-    update_data = await request.json()
-    update = Update.model_validate(update_data)
-    await dp.feed_update(bot, update)
-    return web.Response(text="OK")
-
+# ========== ЗАПУСК (ПРАВИЛЬНЫЙ ДЛЯ RENDER) ==========
 async def on_startup():
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(WEBHOOK_URL, allowed_updates=["message", "callback_query"])
@@ -422,18 +421,16 @@ async def main():
     init_db()
     
     app = web.Application()
-    app.router.add_post(WEBHOOK_PATH, handle_webhook)
-    app.router.add_get("/", lambda request: web.Response(text="OK"))
+    
+    # Правильный способ для aiogram 3.x
+    webhook_requests_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+    webhook_requests_handler.register(app, path=WEBHOOK_PATH)
+    setup_application(app, dp, bot=bot)
     
     await on_startup()
     
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", PORT)
-    await site.start()
-    
-    print(f"🤖 Бот RidePass запущен на порту {PORT}")
-    await asyncio.Event().wait()
+    # Запускаем сервер на порту из переменной окружения PORT
+    web.run_app(app, host="0.0.0.0", port=PORT)
 
 if __name__ == "__main__":
     asyncio.run(main())
