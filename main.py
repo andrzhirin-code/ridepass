@@ -351,25 +351,23 @@ async def handle_admin(callback: CallbackQuery):
             today = datetime.now().strftime("%d.%m.%Y")
             expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
             
-            # Функция очистки пустых значений
             def get_clean(val):
                 if val is None or str(val).strip() == "" or str(val).strip().lower() in ["none", "null"]:
                     return "—"
                 return str(val).strip()
             
-            # Сбор данных для PDF
             order_data = {
                 "id": get_clean(order[0]),
-                "vehicle_type": get_clean(order[5]),
-                "brand": get_clean(order[6]),
-                "model": get_clean(order[7]),
-                "year": get_clean(order[8]),
-                "vin": get_clean(order[9]),
-                "power": get_clean(order[10]),
-                "max_speed": get_clean(order[11]),
-                "full_name": get_clean(order[2]),
-                "passport": get_clean(order[3]),
-                "address": get_clean(order[4]),
+                "vehicle_type": get_clean(order[1]),
+                "brand": get_clean(order[2]),
+                "model": get_clean(order[3]),
+                "year": get_clean(order[4]),
+                "vin": get_clean(order[5]),
+                "power": get_clean(order[6]),
+                "max_speed": get_clean(order[7]),
+                "full_name": get_clean(order[8]),
+                "passport": get_clean(order[9]),
+                "address": get_clean(order[10]),
             }
             
             pdf_path = await asyncio.to_thread(fill_order_template, order_data)
@@ -383,7 +381,6 @@ async def handle_admin(callback: CallbackQuery):
             
         except Exception as e:
             await callback.message.edit_text(f"❌ Ошибка: {e}")
-            print(f"Ошибка в approve: {e}")
             
     elif action == "reject":
         update_order_status(order_id, "rejected")
@@ -442,4 +439,4 @@ async def main():
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    asyncio.run(main.py)
