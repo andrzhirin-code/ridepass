@@ -1,6 +1,5 @@
 import asyncio
 import os
-import sys
 import logging
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
@@ -18,14 +17,6 @@ from aiohttp import web
 
 from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance
 from image_filler import fill_order_template
-
-# ========== НАСТРОЙКА ЛОГОВ В ФАЙЛ ==========
-logging.basicConfig(
-    filename='bot.log',
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
-# ============================================
 
 API_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
 ADMIN_ID = 5171781123
@@ -341,12 +332,9 @@ async def i_paid(message: types.Message):
 # ========== ОБРАБОТЧИК КНОПОК ==========
 @dp.callback_query()
 async def handle_admin(callback: CallbackQuery):
-    logging.info(f"=== ХЭНДЛЕР ВЫЗВАН, user_id={callback.from_user.id}, ADMIN_ID={ADMIN_ID} ===")
-    
     await callback.answer()
     
     if callback.from_user.id != ADMIN_ID:
-        logging.warning(f"Доступ запрещён: {callback.from_user.id} != {ADMIN_ID}")
         await callback.message.answer("У вас нет прав")
         return
     
@@ -354,11 +342,7 @@ async def handle_admin(callback: CallbackQuery):
     order_id = int(order_id_str)
     order = get_order(order_id)
     
-    logging.info(f"ORDER RAW: {order}")
-    logging.info(f"ORDER TYPE: {type(order)}")
-    
     if not order:
-        logging.error(f"Заявка #{order_id} не найдена")
         await callback.message.edit_text(f"❌ Заявка #{order_id} не найдена")
         return
     
@@ -367,31 +351,24 @@ async def handle_admin(callback: CallbackQuery):
             today = datetime.now().strftime("%d.%m.%Y")
             expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
             
-            def extract(obj, index, key_name):
-                if isinstance(obj, dict):
-                    return obj.get(key_name, "")
-                elif isinstance(obj, (tuple, list)):
-                    try:
-                        return obj[index]
-                    except IndexError:
-                        return ""
-                return ""
+            def get_clean(val):
+                if val is None or str(val).strip() == "" or str(val).strip().lower() in ["none", "null"]:
+                    return "—"
+                return str(val).strip()
             
             order_data = {
-                "id": extract(order, 0, "id"),
-                "vehicle_type": extract(order, 1, "vehicle_type"),
-                "brand": extract(order, 2, "brand"),
-                "model": extract(order, 3, "model"),
-                "year": extract(order, 4, "year"),
-                "vin": extract(order, 5, "vin"),
-                "power": extract(order, 6, "power"),
-                "max_speed": extract(order, 7, "max_speed"),
-                "full_name": extract(order, 8, "full_name"),
-                "passport": extract(order, 9, "passport"),
-                "address": extract(order, 10, "address"),
+                "id": get_clean(order[0]),
+                "vehicle_type": get_clean(order[2]),
+                "brand": get_clean(order[3]),
+                "model": get_clean(order[4]),
+                "year": get_clean(order[5]),
+                "vin": get_clean(order[7]),
+                "power": get_clean(order[6]),
+                "max_speed": get_clean(order[12]),
+                "full_name": get_clean(order[8]),
+                "passport": get_clean(order[9]),
+                "address": get_clean(order[10]),
             }
-            
-            logging.info(f"order_data: {order_data}")
             
             pdf_path = await asyncio.to_thread(fill_order_template, order_data)
             document = FSInputFile(pdf_path)
@@ -403,7 +380,6 @@ async def handle_admin(callback: CallbackQuery):
             await callback.message.edit_text(f"✅ Заявка #{order_id} подтверждена. PDF отправлен.")
             
         except Exception as e:
-            logging.error(f"Ошибка в approve: {e}")
             await callback.message.edit_text(f"❌ Ошибка: {e}")
             
     elif action == "reject":
@@ -442,11 +418,9 @@ async def on_startup():
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(WEBHOOK_URL, allowed_updates=["message", "callback_query"])
     print(f"Webhook set to {WEBHOOK_URL}")
-    logging.info(f"Webhook set to {WEBHOOK_URL}")
 
 async def main():
     init_db()
-    logging.info("Бот запущен")
     
     app = web.Application()
     
