@@ -3,38 +3,48 @@ import fitz
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
+FONT_PATH = os.path.join(BASE_DIR, "ARIAL.TTF")
 
 def fill_order_template(data: dict) -> str:
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
 
     doc = fitz.open(TEMPLATE_PATH)
+    page = doc[0]  # работаем с первой страницей
 
-    # 1. Заполняем поля
-    for page in doc:
-        for widget in page.widgets():
-            name = widget.field_name
-            if not name:
-                continue
-            if name in data:
-                widget.field_value = str(data[name])
-                widget.update()
-            elif name.lower() == "category":
-                widget.field_value = "СИМ"
-                widget.update()
+    # Вставляем шрифт для кириллицы
+    try:
+        page.insert_font(fontname="ari", fontfile=FONT_PATH)
+    except:
+        pass
 
-    # 2. Перезагружаем каждую страницу
-    for i in range(len(doc)):
-        doc.reload_page(i)
+    # Заполняем поля
+    for field in page.widgets():
+        name = field.field_name
+        if not name:
+            continue
+        
+        # Получаем значение
+        if name in data:
+            value = data[name]
+        elif name.lower() == "category":
+            value = "СИМ"
+        else:
+            continue
+        
+        if value:
+            # Ставим значение в поле
+            field.field_value = str(value)
+            # Принудительно обновляем
+            field.update()
+            # Пытаемся задать шрифт
+            try:
+                field.text_font = "ari"
+            except:
+                pass
 
-    # 3. Запекаем форму
-    for page in doc:
-        try:
-            page.bake()
-        except:
-            pass
-
+    # Сохраняем с флагом, который убирает интерактивность
     output_path = os.path.join(BASE_DIR, f"order_{data.get('id', '1')}.pdf")
-    doc.save(output_path, deflate=True, garbage=4, clean=True)
+    doc.save(output_path, garbage=3, deflate=True)
     doc.close()
     return output_path
