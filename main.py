@@ -342,6 +342,11 @@ async def handle_admin(callback: CallbackQuery):
     order_id = int(order_id_str)
     order = get_order(order_id)
     
+    # ========== ОТЛАДКА ==========
+    print(f"=== DEBUG: order = {order}")
+    print(f"=== DEBUG: type = {type(order)}")
+    # ==============================
+    
     if not order:
         await callback.message.edit_text(f"❌ Заявка #{order_id} не найдена")
         return
@@ -351,7 +356,6 @@ async def handle_admin(callback: CallbackQuery):
             today = datetime.now().strftime("%d.%m.%Y")
             expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
             
-            # Универсальное извлечение данных (словарь или кортеж)
             def extract(obj, index, key_name):
                 if isinstance(obj, dict):
                     return obj.get(key_name, "")
