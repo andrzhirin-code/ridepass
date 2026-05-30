@@ -14,39 +14,46 @@ def fill_order_template(data: dict) -> str:
     doc = fitz.open(TEMPLATE_PATH)
     page = doc[0]
 
-    # Тестовые значения, если данные пустые
-    form_data = {
-        "id": str(data.get("id", "1")),
-        "vehicle_type": str(data.get("vehicle_type", "Электросамокат")),
-        "category": "СИМ",
-        "brand": str(data.get("brand", "Тест Марка")),
-        "model": str(data.get("model", "Тест Модель")),
-        "year": str(data.get("year", "2026")),
-        "vin": str(data.get("vin", "TEST-VIN-12345")),
-        "power": str(data.get("power", "3000W")),
-        "max_speed": str(data.get("max_speed", "55 км/ч")),
-        "full_name": str(data.get("full_name", "Иванов Иван Иванович")),
-        "passport": str(data.get("passport", "4512 123456")),
-        "address": str(data.get("address", "г. Москва, ул. Ленина, д. 1")),
-    }
+    # Сортируем поля сверху вниз
+    widgets = [w for w in page.widgets()]
+    widgets.sort(key=lambda w: w.rect.y0)
+
+    # ПОРЯДОК ПОЛЕЙ НА ТВОЁМ БЛАНКЕ (исправлен)
+    ordered_values = [
+        "",                                   # первое поле (пропускаем)
+        str(data.get("id", "—")),             # № записи
+        str(data.get("vehicle_type", "—")),   # Тип ТС
+        "СИМ",                                # Категория
+        str(data.get("brand", "—")),          # Марка
+        str(data.get("model", "—")),          # Модель
+        str(data.get("year", "—")),           # Год
+        str(data.get("vin", "—")),            # VIN
+        str(data.get("power", "—")),          # Мощность
+        str(data.get("max_speed", "—")),      # Скорость
+        str(data.get("full_name", "—")),      # ФИО
+        str(data.get("passport", "—")),       # Паспорт
+        str(data.get("address", "—")),        # Адрес
+    ]
 
     text_queue = []
+    for i, field in enumerate(widgets):
+        if i >= len(ordered_values):
+            break
+        if not ordered_values[i]:
+            continue
+        rect = field.rect
+        text_queue.append({
+            "text": ordered_values[i],
+            "point": fitz.Point(rect.x0 + 4, rect.y1 - 5),
+            "is_id": (i == 1)
+        })
 
-    for field in page.widgets():
-        field_name = str(field.field_name).strip().lower()
-        if field_name in form_data:
-            rect = field.rect
-            text_queue.append({
-                "text": form_data[field_name],
-                "point": fitz.Point(rect.x0 + 4, rect.y1 - 5),
-                "is_id": (field_name == "id")
-            })
-
-    for field in page.widgets():
+    # Удаляем виджеты
+    for field in widgets:
         page.delete_widget(field)
 
+    # Вставляем шрифт и текст
     page.insert_font(fontname="ari", fontfile=FONT_PATH)
-
     for item in text_queue:
         font_size = 14 if item["is_id"] else 11
         page.insert_text(
