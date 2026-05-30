@@ -41,15 +41,13 @@ def fill_order_template(data: dict) -> str:
                 "is_id": (field_name == "id")
             })
 
-    # Удаляем виджеты (убираем рамки и фоны)
     for field in page.widgets():
         page.delete_widget(field)
 
-    # Вставляем текст
     page.insert_font(fontname="ari", fontfile=FONT_PATH)
 
     for item in text_queue:
-        font_size = 14 if item["is_id"] else 11
+        font_size = 14 if item.get("is_id") else 11
         page.insert_text(
             item["point"],
             item["text"],
