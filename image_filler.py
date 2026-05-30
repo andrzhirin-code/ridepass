@@ -1,17 +1,19 @@
 import os
 import fitz
-import asyncio
-from aiogram import Bot
+import requests
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 ADMIN_ID = 5171781123
-API_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
+BOT_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
 
-bot = Bot(token=API_TOKEN)
-
-async def send_debug_message(text: str):
-    await bot.send_message(ADMIN_ID, text)
+def send_telegram(text: str):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    data = {"chat_id": ADMIN_ID, "text": text}
+    try:
+        requests.post(url, data=data)
+    except Exception as e:
+        print(f"Ошибка отправки: {e}")
 
 def fill_order_template(data: dict) -> str:
     if not os.path.exists(TEMPLATE_PATH):
@@ -25,8 +27,7 @@ def fill_order_template(data: dict) -> str:
     for w in widgets:
         msg += f"Поле: {w.field_name}\n"
 
-    # Отправляем диагностику в Telegram
-    asyncio.create_task(send_debug_message(msg))
+    send_telegram(msg)
 
     output_path = os.path.join(BASE_DIR, f"debug.pdf")
     doc.save(output_path)
