@@ -1,72 +1,44 @@
-from PIL import Image, ImageDraw, ImageFont
 import os
+import asyncio
+from PIL import Image, ImageDraw, ImageFont
 
-def generate_pdf(order_data):
-    template_path = "template.png"
-    
-    # Если нет шаблона — создаём простой PDF через fpdf2
-    if not os.path.exists(template_path):
-        from fpdf import FPDF
-        pdf = FPDF()
-        pdf.add_page()
-        pdf.set_font("helvetica", size=12)
-        for key, value in order_data.items():
-            pdf.cell(0, 10, f"{key}: {value}", ln=True)
-        output_path = f"temp_{order_data.get('id', 'unknown')}.pdf"
-        pdf.output(output_path)
-        return output_path
-    
-    # Открываем шаблон
-    img = Image.open(template_path)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FONT_PATH = os.path.join(BASE_DIR, "arial.ttf")
+TEMPLATE_PATH = os.path.join(BASE_DIR, "template.png")
+
+def fill_order_template(data: dict) -> str:
+    if not os.path.exists(TEMPLATE_PATH):
+        raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
+    if not os.path.exists(FONT_PATH):
+        raise FileNotFoundError(f"Шрифт не найден: {FONT_PATH}")
+
+    img = Image.open(TEMPLATE_PATH).convert("RGB")
     draw = ImageDraw.Draw(img)
+
+    # Шрифт 70px для наглядности
+    font = ImageFont.truetype(FONT_PATH, size=70)
+
+    # Твои координаты (увеличенный шрифт)
+    x = 977
+    y_start = 1086
+    y_step = 195
+
+    # ========== ТЕСТОВЫЙ БЛОК (видно сразу после деплоя) ==========
+    # Красные линии по координатам
+    draw.line((0, y_start, img.width, y_start), fill="red", width=5)
+    draw.line((x, 0, x, img.height), fill="blue", width=5)
     
-    # Загружаем шрифт с поддержкой кириллицы
-    try:
-        font = ImageFont.truetype("arial.ttf", 55)
-    except:
-        font = ImageFont.load_default()
+    # Красная точка в центре поля
+    draw.ellipse([x-15, y_start-15, x+15, y_start+15], fill=(255, 0, 0))
     
-    # ========== КООРДИНАТЫ (РАССЧИТАНЫ ПО ТВОИМ ЗАМЕРАМ) ==========
-    x = 980          # левая колонка
-    y_start = 1086   # первое поле
-    y_step = 195     # шаг между полями
-    
-    # Цвет текста — чёрный (фон белый)
-    text_color = (0, 0, 0)
-    
-    # ========== ШАПКА (Серия RP, ID, № записи) ==========
-    draw.text((500, 350), order_data.get('series_rp', ''), fill=text_color, font=font, anchor="ls")
-    draw.text((900, 350), order_data.get('doc_id', ''), fill=text_color, font=font, anchor="ls")
-    draw.text((1300, 350), order_data.get('record_number', ''), fill=text_color, font=font, anchor="ls")
-    
-    # ========== I. ОСНОВНЫЕ ДАННЫЕ ==========
-    draw.text((x, y_start), order_data.get('vehicle_type', ''), fill=text_color, font=font, anchor="ls")
-    draw.text((x, y_start + y_step), "СИМ", fill=text_color, font=font, anchor="ls")
-    draw.text((x, y_start + y_step * 2), order_data.get('brand', ''), fill=text_color, font=font, anchor="ls")
-    draw.text((x, y_start + y_step * 3), order_data.get('model', ''), fill=text_color, font=font, anchor="ls")
-    draw.text((x, y_start + y_step * 4), order_data.get('year', ''), fill=text_color, font=font, anchor="ls")
-    draw.text((x, y_start + y_step * 5), order_data.get('serial', ''), fill=text_color, font=font, anchor="ls")
-    draw.text((x, y_start + y_step * 6), f"{order_data.get('power', '')} Вт", fill=text_color, font=font, anchor="ls")
-    draw.text((x, y_start + y_step * 7), f"{order_data.get('speed', '')} км/ч", fill=text_color, font=font, anchor="ls")
-    
-    # ========== II. ДАННЫЕ О ВЛАДЕЛЬЦЕ ==========
-    y_owner = y_start + y_step * 10
-    draw.text((x, y_owner), order_data.get('full_name', ''), fill=text_color, font=font, anchor="ls")
-    draw.text((x, y_owner + y_step), order_data.get('passport', ''), fill=text_color, font=font, anchor="ls")
-    draw.text((x, y_owner + y_step * 2), order_data.get('address', ''), fill=text_color, font=font, anchor="ls")
-    
-    # ========== III. СРОК ДЕЙСТВИЯ ==========
-    y_dates = y_start + y_step * 15
-    draw.text((x, y_dates), order_data.get('issue_date', ''), fill=text_color, font=font, anchor="ls")
-    draw.text((x + 400, y_dates), order_data.get('expiry_date', ''), fill=text_color, font=font, anchor="ls")
-    
-    # ========== V. СВЕДЕНИЯ О ДОКУМЕНТЕ ==========
-    y_reg = y_start + y_step * 19
-    draw.text((x, y_reg), order_data.get('registry_number', ''), fill=text_color, font=font, anchor="ls")
-    draw.text((x + 400, y_reg), order_data.get('issue_date', ''), fill=text_color, font=font, anchor="ls")
-    draw.text((x + 800, y_reg), order_data.get('doc_hash', ''), fill=text_color, font=font, anchor="ls")
-    
+    # Тестовый текст с хвостиками
+    draw.text((x, y_start), "Тест (Тип ТС) урд", fill=(0, 0, 0), font=font, anchor="ls")
+    # ==============================================================
+
     # Сохраняем PDF
-    output_path = f"temp_{order_data.get('id', 'unknown')}.pdf"
-    img.save(output_path, "PDF", resolution=300)
+    output_path = os.path.join(BASE_DIR, f"order_{data.get('id', 'temp')}.pdf")
+    img.save(output_path, "PDF", resolution=300.0)
     return output_path
+
+async def fill_order_template_async(data: dict) -> str:
+    return await asyncio.to_thread(fill_order_template, data)
