@@ -12,19 +12,14 @@ from aiohttp import web
 from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance
 from image_filler import generate_pdf
 
-# ========== КОНФИГУРАЦИЯ ==========
 API_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
 ADMIN_ID = 5171781123
-
-if not API_TOKEN:
-    raise ValueError("No BOT_TOKEN found")
 
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 logging.basicConfig(level=logging.INFO)
 
-# ========== КЛАВИАТУРЫ ==========
 main_menu = ReplyKeyboardMarkup(
     keyboard=[
         [KeyboardButton(text="Получить документы")],
@@ -39,7 +34,6 @@ back_button = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# ========== FSM ==========
 class Form(StatesGroup):
     vehicle_type = State()
     custom_type = State()
@@ -55,19 +49,6 @@ class Form(StatesGroup):
     phone = State()
     speed = State()
 
-# ========== ВЕБ-СЕРВЕР ДЛЯ RENDER ==========
-async def health_check(request):
-    return web.Response(text="Bot is running")
-
-async def start_web_server():
-    app = web.Application()
-    app.router.add_get("/", health_check)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 8080)
-    await site.start()
-
-# ========== СТАРТ ==========
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
     args = message.text.split()
@@ -98,13 +79,11 @@ async def cmd_start(message: types.Message, state: FSMContext):
         reply_markup=main_menu
     )
 
-# ========== НАЗАД ==========
 @dp.message(F.text == "Назад")
 async def back_to_menu(message: types.Message, state: FSMContext):
     await state.clear()
     await message.answer("Вы вернулись в главное меню", reply_markup=main_menu)
 
-# ========== ПОЛУЧИТЬ ДОКУМЕНТЫ (ВЕСЬ FSM КОД) ==========
 @dp.message(F.text == "Получить документы")
 async def get_documents(message: types.Message, state: FSMContext):
     await state.set_state(Form.vehicle_type)
@@ -267,7 +246,7 @@ async def process_phone(message: types.Message, state: FSMContext):
 async def process_speed(message: types.Message, state: FSMContext):
     if message.text == "Назад":
         await state.set_state(Form.phone)
-        await message.answer("10. Введите номер телефона владельца:\n\nМожно написать без +7 — бот добавит автоматически.\nПример: 9991234567", reply_markup=back_button)
+        await message.answer("10. Введите номер телефона владельца:", reply_markup=back_button)
     else:
         await state.update_data(speed=message.text)
         data = await state.get_data()
@@ -303,7 +282,6 @@ async def process_speed(message: types.Message, state: FSMContext):
         )
         await state.clear()
 
-# ========== ОБРАБОТЧИК "Я ОПЛАТИЛ" (ОТПРАВКА ЗАЯВКИ АДМИНУ С КНОПКАМИ) ==========
 @dp.message(F.text == "Я оплатил")
 async def i_paid(message: types.Message):
     await message.answer(
@@ -313,6 +291,7 @@ async def i_paid(message: types.Message):
     )
     
     pending = get_pending_orders()
+    
     for order in pending:
         order_id = order[0]
         text = (
@@ -337,29 +316,26 @@ async def i_paid(message: types.Message):
         
         await bot.send_message(ADMIN_ID, text, reply_markup=kb)
 
-# ========== ОБРАБОТЧИК НАЖАТИЙ НА КНОПКИ (ИСПРАВЛЕН И ДОБАВЛЕН) ==========
 @dp.callback_query()
-async def process_callback(callback_query: types.CallbackQuery):
-    # Проверяем, что нажавший - администратор
-    if callback_query.from_user.id != ADMIN_ID:
-        await callback_query.answer("У вас нет прав.", show_alert=True)
+async def handle_admin(call: types.CallbackQuery):
+    if call.from_user.id != ADMIN_ID:
+        await call.answer("У вас нет прав", show_alert=True)
         return
-
-    # Разбираем данные из callback_data (например, "approve_1")
-    action, order_id_str = callback_query.data.split("_")
+    
+    action, order_id_str = call.data.split("_")
     order_id = int(order_id_str)
     order = get_order(order_id)
-
+    
     if not order:
-        await callback_query.message.edit_text(f"❌ Заявка #{order_id} не найдена.")
-        await callback_query.answer()
+        await call.message.edit_text(f"❌ Заявка #{order_id} не найдена")
+        await call.answer()
         return
-
+    
     if action == "approve":
-        # Логика подтверждения
         update_order_status(order_id, "approved")
         today = datetime.now().strftime("%d.%m.%Y")
         expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
+        
         order_data = {
             "id": order_id,
             "vehicle_type": order[2],
@@ -381,20 +357,20 @@ async def process_callback(callback_query: types.CallbackQuery):
             "issue_date": today,
             "expiry_date": expiry,
         }
+        
         pdf_path = generate_pdf(order_data)
         with open(pdf_path, "rb") as pdf:
             await bot.send_document(order[1], pdf, caption="✅ Ваш платеж подтверждён! Документы готовы.")
-        await callback_query.message.edit_text(f"✅ Заявка #{order_id} подтверждена.")
-        await callback_query.answer("Заявка подтверждена!")
-
+        
+        await call.message.edit_text(f"✅ Заявка #{order_id} подтверждена")
+        await call.answer("Заявка подтверждена")
+        
     elif action == "reject":
-        # Логика отклонения
         update_order_status(order_id, "rejected")
         await bot.send_message(order[1], "❌ Платёж не подтверждён. Свяжитесь с поддержкой.")
-        await callback_query.message.edit_text(f"❌ Заявка #{order_id} отклонена.")
-        await callback_query.answer("Заявка отклонена.")
+        await call.message.edit_text(f"❌ Заявка #{order_id} отклонена")
+        await call.answer("Заявка отклонена")
 
-# ========== РЕФЕРАЛКА ==========
 @dp.message(F.text == "Заработай с нами/реферальная система")
 async def referral(message: types.Message):
     user = get_user(message.from_user.id)
@@ -411,7 +387,6 @@ async def referral(message: types.Message):
         )
         await message.answer(text, reply_markup=main_menu)
 
-# ========== ПОДДЕРЖКА ==========
 @dp.message(F.text == "Связь с поддержкой")
 async def support(message: types.Message):
     await message.answer(
@@ -424,7 +399,15 @@ async def support(message: types.Message):
 async def main():
     init_db()
     await bot.delete_webhook(drop_pending_updates=True)
-    asyncio.create_task(start_web_server())
+    
+    # Запускаем healthcheck сервер на порту 8080
+    app = web.Application()
+    app.router.add_get("/", lambda request: web.Response(text="OK"))
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 8080)
+    await site.start()
+    
     print("🤖 Бот RidePass успешно запущен!")
     await dp.start_polling(bot)
 
