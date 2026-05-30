@@ -18,6 +18,7 @@ from image_filler import generate_pdf
 
 API_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
 ADMIN_ID = 5171781123
+WEBHOOK_URL = "https://ridepass.onrender.com/webhook"
 
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
@@ -322,15 +323,12 @@ async def i_paid(message: types.Message):
 
 @dp.callback_query()
 async def handle_callback(callback: CallbackQuery):
-    # Обязательный ответ Telegram
     await callback.answer()
     
-    # Проверка прав
     if callback.from_user.id != ADMIN_ID:
         await callback.message.answer("У вас нет прав")
         return
     
-    # Разбор данных
     action, order_id_str = callback.data.split("_")
     order_id = int(order_id_str)
     order = get_order(order_id)
@@ -401,20 +399,35 @@ async def support(message: types.Message):
         reply_markup=main_menu
     )
 
+# ========== WEBHOOK ОБРАБОТЧИК ==========
+async def handle_webhook(request):
+    update = types.Update(**(await request.json()))
+    await dp.feed_update(bot, update)
+    return web.Response(text="OK")
+
+# ========== ЗАПУСК ==========
 async def main():
     init_db()
-    await bot.delete_webhook(drop_pending_updates=True)
     
-    # Запускаем healthcheck сервер для Render (обязательно)
+    # Удаляем старый вебхук и устанавливаем новый
+    await bot.delete_webhook(drop_pending_updates=True)
+    await bot.set_webhook(
+        url=WEBHOOK_URL,
+        allowed_updates=["message", "callback_query"]
+    )
+    
+    # Запускаем веб-сервер для приёма вебхуков
     app = web.Application()
+    app.router.add_post("/webhook", handle_webhook)
     app.router.add_get("/", lambda request: web.Response(text="OK"))
+    
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", 8080)
     await site.start()
     
-    print("🤖 Бот RidePass успешно запущен!")
-    await dp.start_polling(bot)
+    print("🤖 Бот RidePass успешно запущен на вебхуке!")
+    await asyncio.Event().wait()  # Бесконечно ждём
 
 if __name__ == "__main__":
     asyncio.run(main())
