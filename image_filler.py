@@ -3,7 +3,7 @@ import asyncio
 from PIL import Image, ImageDraw, ImageFont
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FONT_PATH = os.path.join(BASE_DIR, "ARIAL.TTF")
+FONT_PATH = os.path.join(BASE_DIR, "ARIALBD.TTF")  # жирный шрифт
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template.png")
 
 def generate_pdf(data: dict) -> str:
@@ -15,18 +15,34 @@ def generate_pdf(data: dict) -> str:
     img = Image.open(TEMPLATE_PATH).convert("RGB")
     draw = ImageDraw.Draw(img)
 
-    font = ImageFont.truetype(FONT_PATH, size=70)
+    # 58px = 14pt при 300 DPI
+    font = ImageFont.truetype(FONT_PATH, size=58)
+    
+    # Сдвиг вниз для компенсации базовой линии Pillow
+    Y_OFFSET = 22
 
+    # КООРДИНАТЫ (твои, с браузера)
     x = 977
-    y_start = 1086
-    y_step = 195
+    y_base = 1086
 
-    # Отладочные метки
-    draw.line((0, y_start, img.width, y_start), fill="red", width=5)
-    draw.line((x, 0, x, img.height), fill="blue", width=5)
-    draw.ellipse([x-15, y_start-15, x+15, y_start+15], fill=(255, 0, 0))
-    draw.text((x, y_start), "Тест (Тип ТС) урд", fill=(0, 0, 0), font=font, anchor="ls")
+    # Основные поля
+    fields = {
+        "vehicle_type": (x, y_base + Y_OFFSET),
+        "brand": (x, y_base + 195 + Y_OFFSET),
+        "model": (x, y_base + 390 + Y_OFFSET),
+        "full_name": (x, y_base + 780 + Y_OFFSET),
+    }
 
+    # Отрисовка
+    draw.text(xy=fields["vehicle_type"], text=data.get("vehicle_type", ""), fill=(0,0,0), font=font, anchor="ls")
+    draw.text(xy=fields["brand"], text=data.get("brand", ""), fill=(0,0,0), font=font, anchor="ls")
+    draw.text(xy=fields["model"], text=data.get("model", ""), fill=(0,0,0), font=font, anchor="ls")
+    draw.text(xy=fields["full_name"], text=data.get("full_name", ""), fill=(0,0,0), font=font, anchor="ls")
+
+    # Сохраняем PDF с правильным DPI
     output_path = os.path.join(BASE_DIR, f"order_{data.get('id', 'temp')}.pdf")
-    img.save(output_path, "PDF", resolution=300.0)
+    img.save(output_path, "PDF", resolution=300.0, quality=100)
     return output_path
+
+async def generate_pdf_async(data: dict) -> str:
+    return await asyncio.to_thread(generate_pdf, data)
