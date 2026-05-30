@@ -21,86 +21,29 @@ def generate_pdf(data: dict) -> str:
     Y_OFFSET = 25
 
     fields = {
-        "id": {
-            "coords": (1240, 260 + Y_OFFSET),
-            "text": str(data.get("id", "")),
-            "font": font_large,
-            "anchor": "ms"
-        },
-        "vehicle_type": {
-            "coords": (1000, 835 + Y_OFFSET),
-            "text": data.get("vehicle_type", ""),
-            "font": font_normal,
-            "anchor": "ls"
-        },
-        "category": {
-            "coords": (1000, 930 + Y_OFFSET),
-            "text": "СИМ",
-            "font": font_normal,
-            "anchor": "ls"
-        },
-        "brand": {
-            "coords": (1000, 1025 + Y_OFFSET),
-            "text": data.get("brand", ""),
-            "font": font_normal,
-            "anchor": "ls"
-        },
-        "model": {
-            "coords": (1000, 1120 + Y_OFFSET),
-            "text": data.get("model", ""),
-            "font": font_normal,
-            "anchor": "ls"
-        },
-        "year": {
-            "coords": (1000, 1215 + Y_OFFSET),
-            "text": str(data.get("year", "")),
-            "font": font_normal,
-            "anchor": "ls"
-        },
-        "vin": {
-            "coords": (1000, 1310 + Y_OFFSET),
-            "text": data.get("vin", ""),
-            "font": font_normal,
-            "anchor": "ls"
-        },
-        "power": {
-            "coords": (1000, 1405 + Y_OFFSET),
-            "text": data.get("power", ""),
-            "font": font_normal,
-            "anchor": "ls"
-        },
-        "max_speed": {
-            "coords": (1000, 1500 + Y_OFFSET),
-            "text": data.get("max_speed", ""),
-            "font": font_normal,
-            "anchor": "ls"
-        },
-        "full_name": {
-            "coords": (1000, 1720 + Y_OFFSET),
-            "text": data.get("full_name", ""),
-            "font": font_normal,
-            "anchor": "ls"
-        },
-        "passport": {
-            "coords": (1000, 1855 + Y_OFFSET),
-            "text": data.get("passport", ""),
-            "font": font_normal,
-            "anchor": "ls"
-        },
-        "address": {
-            "coords": (1000, 1990 + Y_OFFSET),
-            "text": data.get("address", ""),
-            "font": font_normal,
-            "anchor": "ls"
-        },
+        "id": {"coords": (1240, 260 + Y_OFFSET), "font": font_large, "anchor": "ms"},
+        "vehicle_type": {"coords": (1100, 835 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
+        "brand": {"coords": (1100, 1025 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
+        "model": {"coords": (1100, 1120 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
+        "year": {"coords": (1100, 1215 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
+        "vin": {"coords": (1100, 1310 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
+        "power": {"coords": (1100, 1405 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
+        "max_speed": {"coords": (1100, 1500 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
+        "full_name": {"coords": (1100, 1720 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
+        "passport": {"coords": (1100, 1855 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
+        "address": {"coords": (1100, 1990 + Y_OFFSET), "font": font_normal, "anchor": "ls"},
     }
 
-    for config in fields.values():
-        if config["text"]:
+    # Категория всегда "СИМ"
+    draw.text((1100, 930 + Y_OFFSET), "СИМ", fill=(0, 0, 0), font=font_normal, anchor="ls")
+
+    for key, config in fields.items():
+        value = data.get(key, "")
+        if value:
             draw.text(
                 xy=config["coords"],
-                text=config["text"],
-                fill=(26, 36, 43),
+                text=str(value),
+                fill=(0, 0, 0),
                 font=config["font"],
                 anchor=config["anchor"]
             )
