@@ -73,9 +73,9 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await bot.send_message(referrer_id, "🎉 Вам начислено 500₽ за приглашённого друга!")
     
     await message.answer(
-        "🌟 *Добро пожаловать в RidePass* 🌟\n\n"
+        "🌟 Добро пожаловать в RidePass 🌟\n\n"
         "Оформление документов на электротранспорт — быстро, удобно и полностью онлайн.\n\n"
-        "📋 *Как получить документы:*\n"
+        "📋 Как получить документы:\n"
         "1️⃣ Нажмите «Получить документы»\n"
         "2️⃣ Выберите тип транспортного средства\n"
         "3️⃣ Укажите данные\n"
@@ -83,8 +83,7 @@ async def cmd_start(message: types.Message, state: FSMContext):
         "5️⃣ Нажмите «Я оплатил»\n"
         "6️⃣ Дождитесь подтверждения менеджера\n"
         "7️⃣ Получите готовый PDF-документ прямо в боте",
-        reply_markup=main_menu,
-        parse_mode="Markdown"
+        reply_markup=main_menu
     )
 
 # ========== КОМАНДЫ АДМИНА ==========
@@ -134,7 +133,7 @@ async def approve_order(message: types.Message):
     
     pdf_path = generate_pdf(order_data)
     with open(pdf_path, "rb") as pdf:
-        await bot.send_document(order[1], pdf, caption="✅ *Ваш платеж подтверждён!* Документы готовы.")
+        await bot.send_document(order[1], pdf, caption="✅ Ваш платеж подтверждён! Документы готовы.")
     
     await message.answer(f"✅ Заявка #{order_id} подтверждена, PDF отправлен пользователю")
 
@@ -156,7 +155,7 @@ async def reject_order(message: types.Message):
         return
     
     update_order_status(order_id, "rejected")
-    await bot.send_message(order[1], "❌ *Платёж не подтверждён.* Свяжитесь с поддержкой.", parse_mode="Markdown")
+    await bot.send_message(order[1], "❌ Платёж не подтверждён. Свяжитесь с поддержкой.")
     await message.answer(f"❌ Заявка #{order_id} отклонена")
 
 # ========== НАЗАД ==========
@@ -351,27 +350,25 @@ async def process_speed(message: types.Message, state: FSMContext):
         update_order_status(order_id, "waiting_confirm")
         
         await message.answer(
-            "💳 *Для оформления заявки оплатите услугу*\n\n"
-            "💰 *Сумма:* 2499 рублей\n"
-            "🏦 *Реквизиты для оплаты:*\n"
+            "💳 Для оформления заявки оплатите услугу\n\n"
+            "💰 Сумма: 2499 рублей\n"
+            "🏦 Реквизиты для оплаты:\n"
             "• СБП: +7 916 214-00-01 (Т-Банк)\n"
             "• Карта: 2200 7006 1478 3958\n\n"
-            "✅ *После оплаты нажмите кнопку «Я оплатил»*",
+            "✅ После оплаты нажмите кнопку «Я оплатил»",
             reply_markup=ReplyKeyboardMarkup(
                 keyboard=[[KeyboardButton(text="Я оплатил")], [KeyboardButton(text="Назад")]],
                 resize_keyboard=True
-            ),
-            parse_mode="Markdown"
+            )
         )
         await state.clear()
 
 @dp.message(F.text == "Я оплатил")
 async def i_paid(message: types.Message):
     await message.answer(
-        "🙏 *Спасибо!* Мы отправили администраторам уведомление о платеже.\n\n"
+        "🙏 Спасибо! Мы отправили администраторам уведомление о платеже.\n\n"
         "⏳ Дождитесь подтверждения.",
-        reply_markup=main_menu,
-        parse_mode="Markdown"
+        reply_markup=main_menu
     )
     
     pending = get_pending_orders()
@@ -379,7 +376,7 @@ async def i_paid(message: types.Message):
     for order in pending:
         order_id = order[0]
         text = (
-            f"🔔 *НОВАЯ ЗАЯВКА #{order_id}*\n\n"
+            f"🔔 НОВАЯ ЗАЯВКА #{order_id}\n\n"
             f"📌 Тип ТС: {order[2]}\n"
             f"🏭 Марка: {order[3]}\n"
             f"🔧 Модель: {order[4]}\n"
@@ -395,7 +392,7 @@ async def i_paid(message: types.Message):
             f"❌ /reject {order_id}"
         )
         
-        await bot.send_message(ADMIN_ID, text, parse_mode="Markdown")
+        await bot.send_message(ADMIN_ID, text)
 
 # ========== РЕФЕРАЛКА ==========
 @dp.message(F.text == "Заработай с нами/реферальная система")
@@ -403,25 +400,24 @@ async def referral(message: types.Message):
     user = get_user(message.from_user.id)
     if user:
         text = (
-            f"💰 *Мой кабинет RidePass*\n\n"
+            f"💰 Мой кабинет RidePass\n\n"
             f"Баланс: {user[2]} ₽\n"
             f"Всего заработано: {user[3]} ₽\n"
             f"Рефералов: {user[4]}\n"
             f"Оплаченных заявок рефералов: {user[5]}\n"
             f"Текущая ставка: 20%\n\n"
-            f"🔗 *Ваша реферальная ссылка:*\n`{user[1]}`\n\n"
+            f"🔗 Ваша реферальная ссылка:\n{user[1]}\n\n"
             f"Отправьте ссылку друзьям. Когда приглашенный пользователь оформит и оплатит документы, вознаграждение автоматически появится в вашем кабинете."
         )
-        await message.answer(text, reply_markup=main_menu, parse_mode="Markdown")
+        await message.answer(text, reply_markup=main_menu)
 
 # ========== ПОДДЕРЖКА ==========
 @dp.message(F.text == "Связь с поддержкой")
 async def support(message: types.Message):
     await message.answer(
-        "📞 *Связь с поддержкой*\n\n"
+        "📞 Связь с поддержкой\n\n"
         "Открыть чат с менеджером: @ridepass_support",
-        reply_markup=main_menu,
-        parse_mode="Markdown"
+        reply_markup=main_menu
     )
 
 # ========== ЗАПУСК ==========
