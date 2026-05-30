@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -9,7 +10,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton, 
     InlineKeyboardMarkup, InlineKeyboardButton,
-    CallbackQuery
+    CallbackQuery, Update
 )
 from aiohttp import web
 
@@ -19,8 +20,9 @@ from image_filler import generate_pdf
 API_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
 ADMIN_ID = 5171781123
 
-# Webhook URL (Render сам подставит ваш домен)
-WEBHOOK_URL = "https://ridepass.onrender.com/webhook"
+WEBHOOK_PATH = f"/webhook/{API_TOKEN}"
+WEBHOOK_URL = f"https://ridepass.onrender.com{WEBHOOK_PATH}"
+PORT = int(os.environ.get("PORT", 10000))
 
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
@@ -58,7 +60,7 @@ class Form(StatesGroup):
     phone = State()
     speed = State()
 
-# ========== ОБРАБОТЧИКИ ==========
+# ========== СТАРТ ==========
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message, state: FSMContext):
     args = message.text.split()
@@ -326,10 +328,8 @@ async def i_paid(message: types.Message):
         
         await bot.send_message(ADMIN_ID, text, reply_markup=kb)
 
-# ========== ОБРАБОТЧИК КНОПОК (СОГЛАСНО ДОКУМЕНТАЦИИ) ==========
 @dp.callback_query()
 async def handle_callback(callback: CallbackQuery):
-    # Обязательный ответ Telegram (убирает часики загрузки)
     await callback.answer()
     
     if callback.from_user.id != ADMIN_ID:
@@ -408,32 +408,31 @@ async def support(message: types.Message):
 
 # ========== WEBHOOK ОБРАБОТЧИК ==========
 async def handle_webhook(request):
-    update = types.Update(**(await request.json()))
+    update_data = await request.json()
+    update = Update.model_validate(update_data)
     await dp.feed_update(bot, update)
     return web.Response(text="OK")
 
-# ========== ЗАПУСК ==========
+async def on_startup():
+    await bot.delete_webhook(drop_pending_updates=True)
+    await bot.set_webhook(WEBHOOK_URL, allowed_updates=["message", "callback_query"])
+    print(f"Webhook set to {WEBHOOK_URL}")
+
 async def main():
     init_db()
     
-    # Удаляем старый вебхук и устанавливаем новый
-    await bot.delete_webhook(drop_pending_updates=True)
-    await bot.set_webhook(
-        url=WEBHOOK_URL,
-        allowed_updates=["message", "callback_query"]
-    )
-    
-    # Запускаем веб-сервер для приёма вебхуков
     app = web.Application()
-    app.router.add_post("/webhook", handle_webhook)
+    app.router.add_post(WEBHOOK_PATH, handle_webhook)
     app.router.add_get("/", lambda request: web.Response(text="OK"))
+    
+    await on_startup()
     
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 8080)
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
     
-    print("🤖 Бот RidePass успешно запущен на вебхуке!")
+    print(f"🤖 Бот RidePass запущен на порту {PORT}")
     await asyncio.Event().wait()
 
 if __name__ == "__main__":
