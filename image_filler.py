@@ -23,7 +23,6 @@ def fill_order_template(
     doc = fitz.open(TEMPLATE_PATH)
     page = doc[0]
 
-    # Данные из бота
     form_data = {
         "vehicle_type": str(vehicle_type) if vehicle_type else "",
         "category": "СИМ",
@@ -38,7 +37,6 @@ def fill_order_template(
         "address": str(address) if address else "",
     }
 
-    # Заполняем поля
     for field in page.widgets():
         field_name = field.field_name.strip().lower() if field.field_name else ""
         for key, value in form_data.items():
@@ -47,7 +45,7 @@ def fill_order_template(
                 field.update()
                 break
 
-    # ГЛАВНОЕ: удаляем все рамки и фоны полей
+    # Удаляем все рамки и фоны
     page.bake_form_fields()
 
     output_path = os.path.join(BASE_DIR, f"order_{order_id}.pdf")
