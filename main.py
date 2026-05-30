@@ -263,11 +263,12 @@ async def process_phone(message: types.Message, state: FSMContext):
         await state.set_state(Form.speed)
         await message.answer("11. Введите максимальную скорость (км/ч):", reply_markup=back_button)
 
+# ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ SPEED ==========
 @dp.message(Form.speed)
 async def process_speed(message: types.Message, state: FSMContext):
     if message.text == "Назад":
         await state.set_state(Form.phone)
-        await message.answer("10. Введите номер телефона владельца:", reply_markup=back_button)
+        await message.answer("10. Введите номер телефона владельца:\n\nМожно написать без +7 — бот добавит автоматически.\nПример: 9991234567", reply_markup=back_button)
     else:
         await state.update_data(speed=message.text)
         data = await state.get_data()
@@ -303,7 +304,7 @@ async def process_speed(message: types.Message, state: FSMContext):
         )
         await state.clear()
 
-# ========== ОБРАБОТЧИК "Я ОПЛАТИЛ" С ИНЛАЙН-КНОПКАМИ ==========
+# ========== ОБРАБОТЧИК "Я ОПЛАТИЛ" ==========
 @dp.message(F.text == "Я оплатил")
 async def i_paid(message: types.Message):
     await message.answer(
@@ -338,10 +339,9 @@ async def i_paid(message: types.Message):
         
         await bot.send_message(ADMIN_ID, text, reply_markup=kb)
 
-# ========== ОБРАБОТЧИК НАЖАТИЙ НА КНОПКИ (АДМИН) ==========
+# ========== ОБРАБОТЧИК КНОПОК АДМИНА ==========
 @dp.callback_query()
 async def handle_admin_actions(call: types.CallbackQuery):
-    # Проверяем, что нажавший кнопку - это администратор
     if call.from_user.id != ADMIN_ID:
         await call.answer("У вас нет прав для этого действия.", show_alert=True)
         return
@@ -387,7 +387,7 @@ async def handle_admin_actions(call: types.CallbackQuery):
         with open(pdf_path, "rb") as pdf:
             await bot.send_document(order[1], pdf, caption="✅ Ваш платеж подтверждён! Документы готовы.")
         
-        await call.message.edit_text(f"✅ Заявка #{order_id} подтверждена. PDF отправлен пользователю.")
+        await call.message.edit_text(f"✅ Заявка #{order_id} подтверждена. PDF отправлен.")
         await call.answer("Заявка подтверждена!")
         
     elif action == "reject":
