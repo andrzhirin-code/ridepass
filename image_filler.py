@@ -38,32 +38,20 @@ def fill_order_template(
         "address": str(address) if address else "",
     }
 
-    # ОТЛАДКА: выводим реальные имена полей
-    print("=== РЕАЛЬНЫЕ ИМЕНА ПОЛЕЙ В PDF ===")
+    # Заполняем поля
     for field in page.widgets():
-        print(f"Имя поля: '{field.field_name}'")
-    print("==================================")
-
-    # Заполняем поля и убираем фон/границы
-    for field in page.widgets():
-        pdf_field_name = field.field_name.strip().lower() if field.field_name else ""
+        field_name = field.field_name.strip().lower() if field.field_name else ""
         for key, value in form_data.items():
-            if key.lower() in pdf_field_name:
+            if key.lower() in field_name:
                 field.field_value = value
-                field.fill_color = None      # убираем серый фон
-                field.border_color = None    # убираем рамку
-                field.border_width = 0
                 field.update()
-                print(f"Заполнено поле '{field.field_name}' значением '{value}'")
                 break
 
-    # Сплющивание
-    pdf_bytes = doc.convert_to_pdf()
-    doc.close()
+    # ГЛАВНОЕ: удаляем все рамки и фоны полей
+    page.bake_form_fields()
 
-    flattened_doc = fitz.open("pdf", pdf_bytes)
     output_path = os.path.join(BASE_DIR, f"order_{order_id}.pdf")
-    flattened_doc.save(output_path, garbage=3, deflate=True)
-    flattened_doc.close()
+    doc.save(output_path, garbage=3, deflate=True)
+    doc.close()
 
     return output_path
