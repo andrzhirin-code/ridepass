@@ -30,26 +30,26 @@ def fill_order_template(
     font_large = ImageFont.truetype(FONT_PATH, size=75)
 
     Y_OFF = 25
-    X_VAL = 1300
+    X_VAL = 1080
 
-    # Шапка
+    # Шапка (ID)
     if order_id:
-        draw.text((2100, 260 + Y_OFF), str(order_id), fill=(26, 36, 43), font=font_large, anchor="ms")
+        draw.text((1240, 260 + Y_OFF), str(order_id), fill=(26, 36, 43), font=font_large, anchor="ms")
 
-    # Раздел I. ОСНОВНЫЕ ДАННЫЕ
-    draw.text((X_VAL, 835 + Y_OFF), str(vehicle_type), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 930 + Y_OFF), "СИМ", fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 1025 + Y_OFF), str(brand), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 1120 + Y_OFF), str(model), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 1215 + Y_OFF), str(year), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 1310 + Y_OFF), str(vin), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 1405 + Y_OFF), str(power), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 1500 + Y_OFF), str(max_speed), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    # Раздел I (Y от 410 до 795)
+    draw.text((X_VAL, 410 + Y_OFF), str(vehicle_type), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 465 + Y_OFF), "СИМ", fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 520 + Y_OFF), str(brand), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 575 + Y_OFF), str(model), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 630 + Y_OFF), str(year), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 685 + Y_OFF), str(vin), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 740 + Y_OFF), str(power), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 795 + Y_OFF), str(max_speed), fill=(26, 36, 43), font=font_normal, anchor="ls")
 
-    # Раздел II. ДАННЫЕ О ВЛАДЕЛЬЦЕ
-    draw.text((X_VAL, 1720 + Y_OFF), str(full_name), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 1855 + Y_OFF), str(passport), fill=(26, 36, 43), font=font_normal, anchor="ls")
-    draw.text((X_VAL, 1990 + Y_OFF), str(address), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    # Раздел II (Y от 905 до 1015)
+    draw.text((X_VAL, 905 + Y_OFF), str(full_name), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 960 + Y_OFF), str(passport), fill=(26, 36, 43), font=font_normal, anchor="ls")
+    draw.text((X_VAL, 1015 + Y_OFF), str(address), fill=(26, 36, 43), font=font_normal, anchor="ls")
 
     output_path = os.path.join(BASE_DIR, f"order_{order_id}.pdf")
     img.save(output_path, "PDF", resolution=300.0, quality=100)
