@@ -43,6 +43,6 @@ def fill_order_template(
 
     output_path = os.path.join(BASE_DIR, f"order_{order_id}.pdf")
     with open(output_path, "wb") as output_file:
-        writer.write(output_file, flatten=True)
+        writer.write(output_file)
 
     return output_path
