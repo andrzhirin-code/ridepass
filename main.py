@@ -351,19 +351,19 @@ async def handle_admin(callback: CallbackQuery):
             today = datetime.now().strftime("%d.%m.%Y")
             expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
             
-            # ИСПРАВЛЕННЫЙ БЛОК С СООТВЕТСТВИЕМ ИНДЕКСОВ
+            # ИСПРАВЛЕННЫЕ ИНДЕКСЫ ОТ GEMINI
             order_data = {
                 "id": order[0],
-                "full_name": order[2],
-                "passport": order[3],
-                "address": order[4],
-                "vehicle_type": order[5],
-                "brand": order[6],
-                "model": order[7],
-                "year": order[8],
-                "vin": order[9] if order[9] else "Отсутствует",
-                "power": order[10],
-                "max_speed": order[11],
+                "vehicle_type": order[2],
+                "brand": order[3],
+                "model": order[4],
+                "year": order[5],
+                "vin": order[6],
+                "power": order[7],
+                "max_speed": order[8],
+                "full_name": order[9],
+                "passport": order[10],
+                "address": order[11],
                 "issue_date": today,
                 "expiry_date": expiry,
             }
