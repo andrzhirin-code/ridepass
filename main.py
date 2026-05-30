@@ -10,7 +10,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     ReplyKeyboardMarkup, KeyboardButton, 
     InlineKeyboardMarkup, InlineKeyboardButton,
-    CallbackQuery
+    CallbackQuery, FSInputFile
 )
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
@@ -329,7 +329,7 @@ async def i_paid(message: types.Message):
         
         await bot.send_message(ADMIN_ID, text, reply_markup=kb)
 
-# ========== ОБРАБОТЧИК КНОПОК ==========
+# ========== ОБРАБОТЧИК КНОПОК (ИСПРАВЛЕННЫЙ) ==========
 @dp.callback_query()
 async def handle_callback(callback: CallbackQuery):
     await callback.answer()
@@ -347,38 +347,48 @@ async def handle_callback(callback: CallbackQuery):
         return
     
     if action == "approve":
-        update_order_status(order_id, "approved")
-        today = datetime.now().strftime("%d.%m.%Y")
-        expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
-        
-        order_data = {
-            "id": order_id,
-            "vehicle_type": order[2],
-            "brand": order[3],
-            "model": order[4],
-            "year": order[5],
-            "power": order[6],
-            "serial": order[7] if order[7] else "Отсутствует",
-            "full_name": order[8],
-            "passport": order[9],
-            "address": order[10],
-            "phone": order[11],
-            "speed": order[12],
-            "series_rp": f"RP-{order_id:06d}",
-            "doc_id": f"ID-{order_id:06d}",
-            "record_number": f"{order_id:06d}",
-            "registry_number": f"KP-{order_id:06d}",
-            "doc_hash": f"HASH-{order_id:06d}",
-            "issue_date": today,
-            "expiry_date": expiry,
-        }
-        
-        pdf_path = generate_pdf(order_data)
-        with open(pdf_path, "rb") as pdf:
-            await bot.send_document(order[1], pdf, caption="✅ Ваш платеж подтверждён! Документы готовы.")
-        
-        await callback.message.edit_text(f"✅ Заявка #{order_id} подтверждена. PDF отправлен.")
-        
+        try:
+            update_order_status(order_id, "approved")
+            today = datetime.now().strftime("%d.%m.%Y")
+            expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
+            
+            # Исправление 1: order — это кортеж, строим словарь правильно
+            order_data = {
+                "id": order[0],
+                "vehicle_type": order[2],
+                "brand": order[3],
+                "model": order[4],
+                "year": order[5],
+                "power": order[6],
+                "serial": order[7] if order[7] else "Отсутствует",
+                "full_name": order[8],
+                "passport": order[9],
+                "address": order[10],
+                "phone": order[11],
+                "speed": order[12],
+                "series_rp": f"RP-{order[0]:06d}",
+                "doc_id": f"ID-{order[0]:06d}",
+                "record_number": f"{order[0]:06d}",
+                "registry_number": f"KP-{order[0]:06d}",
+                "doc_hash": f"HASH-{order[0]:06d}",
+                "issue_date": today,
+                "expiry_date": expiry,
+            }
+            
+            # Исправление 2: генерация PDF в отдельном потоке (чтобы не блокировать бота)
+            pdf_path = await asyncio.to_thread(generate_pdf, order_data)
+            
+            # Исправление 3: правильная отправка файла через FSInputFile
+            document = FSInputFile(pdf_path)
+            await bot.send_document(chat_id=order[1], document=document, caption="✅ Ваш платеж подтверждён! Документы готовы.")
+            
+            await callback.message.edit_text(f"✅ Заявка #{order_id} подтверждена. PDF отправлен.")
+            
+        except Exception as e:
+            error_msg = f"❌ Ошибка при подтверждении: {e}"
+            await callback.message.edit_text(error_msg)
+            await bot.send_message(ADMIN_ID, f"Ошибка в approve заявки #{order_id}:\n{e}")
+            
     elif action == "reject":
         update_order_status(order_id, "rejected")
         await bot.send_message(order[1], "❌ Платёж не подтверждён. Свяжитесь с поддержкой.")
@@ -408,7 +418,7 @@ async def support(message: types.Message):
         reply_markup=main_menu
     )
 
-# ========== ЗАПУСК (ИСПРАВЛЕННЫЙ) ==========
+# ========== ЗАПУСК ==========
 async def on_startup():
     await bot.delete_webhook(drop_pending_updates=True)
     await bot.set_webhook(WEBHOOK_URL, allowed_updates=["message", "callback_query"])
