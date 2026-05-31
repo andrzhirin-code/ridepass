@@ -14,18 +14,20 @@ def fill_order_template(data: dict) -> str:
     doc = fitz.open(TEMPLATE_PATH)
     page = doc[0]
 
+    # ПРАВИЛЬНОЕ СООТВЕТСТВИЕ (по твоему результату)
     field_mapping = {
-        "Text3": str(data.get("id", "—")),
-        "Text4": str(data.get("id", "—")),
-        "Text5": str(data.get("vehicle_type", "—")),
-        "Text6": "СИМ",
-        "Text7": str(data.get("brand", "—")),
-        "Text10": str(data.get("model", "—")),
-        "Text12": str(data.get("year", "—")),
-        "Text13": str(data.get("vin", "—")),
-        "Text16": str(data.get("power", "—")),
-        "Text18": str(data.get("max_speed", "—")),
-        "Text19": str(data.get("full_name", "—")),
+        "Text3": str(data.get("id", "—")),           # № записи
+        "Text4": str(data.get("id", "—")),           # ID
+        "Text5": str(data.get("vehicle_type", "—")), # Тип ТС
+        "Text6": "СИМ",                              # Категория
+        "Text7": str(data.get("brand", "—")),        # Марка
+        "Text10": str(data.get("model", "—")),       # Модель
+        "Text12": str(data.get("year", "—")),        # Год
+        "Text13": str(data.get("vin", "—")),         # VIN
+        "Text16": str(data.get("power", "—")),       # Мощность
+        "Text18": str(data.get("max_speed", "—")),   # Скорость
+        "Text19": str(data.get("full_name", "—")),   # ФИО
+        # Для паспорта и адреса нужно добавить поля в PDF или рисовать по координатам
     }
 
     text_queue = []
