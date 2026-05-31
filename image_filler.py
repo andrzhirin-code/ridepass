@@ -7,49 +7,64 @@ FONT_PATH = os.path.join(BASE_DIR, "ARIAL.TTF")
 
 def fill_order_template(data: dict) -> str:
     if not os.path.exists(TEMPLATE_PATH):
-        raise FileNotFoundError(TEMPLATE_PATH)
+        raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
     if not os.path.exists(FONT_PATH):
-        raise FileNotFoundError(FONT_PATH)
+        raise FileNotFoundError(f"Шрифт не найден: {FONT_PATH}")
 
     doc = fitz.open(TEMPLATE_PATH)
     page = doc[0]
-    page.insert_font(fontname="ari", fontfile=FONT_PATH)
 
-    values = {
-        "id": str(data.get("id", "—")),
-        "vehicle_type": str(data.get("vehicle_type", "—")),
-        "category": "СИМ",
-        "brand": str(data.get("brand", "—")),
-        "model": str(data.get("model", "—")),
-        "year": str(data.get("year", "—")),
-        "vin": str(data.get("vin", "—")),
-        "power": str(data.get("power", "—")),
-        "max_speed": str(data.get("max_speed", "—")),
-        "full_name": str(data.get("full_name", "—")),
-        "passport": str(data.get("passport", "—")),
-        "address": str(data.get("address", "—")),
-    }
+    # Сортируем поля сверху вниз
+    widgets = [w for w in page.widgets()]
+    widgets.sort(key=lambda w: w.rect.y0)
 
-    widgets = list(page.widgets() or [])
+    # ПОРЯДОК ПОЛЕЙ НА ТВОЁМ БЛАНКЕ (исправлен)
+    ordered_values = [
+        "",                                     # первое поле (пропускаем)
+        str(data.get("id", "—")),               # № записи
+        str(data.get("vehicle_type", "—")),     # Тип ТС
+        "СИМ",                                  # Категория
+        str(data.get("brand", "—")),            # Марка
+        str(data.get("model", "—")),            # Модель
+        str(data.get("year", "—")),             # Год
+        str(data.get("vin", "—")),              # VIN
+        str(data.get("power", "—")),            # Мощность
+        str(data.get("max_speed", "—")),        # Скорость
+        str(data.get("full_name", "—")),        # ФИО
+        str(data.get("passport", "—")),         # Паспорт
+        str(data.get("address", "—")),          # Адрес
+    ]
 
-    text_items = []
-    for field in widgets:
-        name = field.field_name
-        if name not in values:
+    text_queue = []
+    for i, field in enumerate(widgets):
+        if i >= len(ordered_values):
+            break
+        if not ordered_values[i]:
             continue
         rect = field.rect
-        text_items.append((
-            values[name],
-            fitz.Point(rect.x0 + 3, rect.y1 - 4)
-        ))
+        text_queue.append({
+            "text": ordered_values[i],
+            "point": fitz.Point(rect.x0 + 4, rect.y1 - 5),
+            "is_id": (i == 1)
+        })
 
+    # Удаляем виджеты
     for field in widgets:
         page.delete_widget(field)
 
-    for text, point in text_items:
-        page.insert_text(point, text, fontname="ari", fontsize=11, color=(0, 0, 0))
+    # Вставляем шрифт и текст
+    page.insert_font(fontname="ari", fontfile=FONT_PATH)
+    for item in text_queue:
+        font_size = 14 if item["is_id"] else 11
+        page.insert_text(
+            item["point"],
+            item["text"],
+            fontsize=font_size,
+            fontname="ari",
+            color=(0.12, 0.16, 0.2)
+        )
 
     output_path = os.path.join(BASE_DIR, f"order_{data.get('id', '1')}.pdf")
-    doc.save(output_path, garbage=4, deflate=True, clean=True)
+    doc.save(output_path, garbage=3, deflate=True)
     doc.close()
     return output_path
