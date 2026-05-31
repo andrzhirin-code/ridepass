@@ -10,22 +10,7 @@ def fill_order_template(data: dict) -> str:
     page = doc[0]
     page.insert_font(fontname="ari", fontfile=FONT_PATH)
 
-    # ПОРЯДОК ПОЛЕЙ (сверь с тем, как они идут в PDF)
-    field_order = [
-        "Text3",   # vehicle_type
-        "Text4",   # category
-        "Text5",   # brand
-        "Text6",   # model
-        "Text7",   # year
-        "Text8",   # vin
-        "Text9",   # power
-        "Text10",  # max_speed
-        "Text11",  # full_name
-        "Text12",  # passport
-        "Text13",  # address
-        "Text14",  # id
-    ]
-
+    # Список значений в том порядке, в котором поля идут в PDF
     values = [
         data.get("vehicle_type", ""),
         "СИМ",
@@ -41,13 +26,21 @@ def fill_order_template(data: dict) -> str:
         str(data.get("id", "")),
     ]
 
-    widgets = list(page.widgets())
-    for i, field in enumerate(widgets):
-        if i >= len(field_order):
+    for i, field in enumerate(page.widgets()):
+        if i >= len(values):
             break
         if values[i]:
             field.field_value = str(values[i])
             field.update()
+            # Удаляем рамку (если нужна)
+            field.border_width = 0
+            field.fill_color = None
+
+    # Убираем все рамки и фон полей
+    for field in page.widgets():
+        field.border_width = 0
+        field.fill_color = None
+        field.update()
 
     output_path = os.path.join(BASE_DIR, f"order_{data.get('id', '1')}.pdf")
     doc.save(output_path)
