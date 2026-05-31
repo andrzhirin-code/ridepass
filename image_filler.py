@@ -1,54 +1,55 @@
 import os
-import requests
-from pypdf import PdfReader, PdfWriter
+import fitz
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
-ADMIN_ID = 5171781123
-BOT_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
-
-def send_telegram(text: str):
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": ADMIN_ID, "text": text})
+FONT_PATH = os.path.join(BASE_DIR, "ARIALBD.TTF")
 
 def fill_order_template(data: dict) -> str:
-    # Диагностика: какие поля в шаблоне
-    reader = PdfReader(TEMPLATE_PATH)
-    fields = reader.get_fields()
-    field_names = list(fields.keys()) if fields else []
-    send_telegram(f"🔍 Поля в шаблоне: {field_names}")
+    doc = fitz.open(TEMPLATE_PATH)
+    page = doc[0]
+    page.insert_font(fontname="ari", fontfile=FONT_PATH)
 
-    writer = PdfWriter()
-    writer.append(reader)
+    # ПОРЯДОК ПОЛЕЙ (сверь с тем, как они идут в PDF)
+    field_order = [
+        "Text3",   # vehicle_type
+        "Text4",   # category
+        "Text5",   # brand
+        "Text6",   # model
+        "Text7",   # year
+        "Text8",   # vin
+        "Text9",   # power
+        "Text10",  # max_speed
+        "Text11",  # full_name
+        "Text12",  # passport
+        "Text13",  # address
+        "Text14",  # id
+    ]
 
-    values = {
-        "vehicle_type": str(data.get("vehicle_type", "")),
-        "category": "СИМ",
-        "brand": str(data.get("brand", "")),
-        "model": str(data.get("model", "")),
-        "year": str(data.get("year", "")),
-        "vin": str(data.get("vin", "")),
-        "power": str(data.get("power", "")),
-        "max_speed": str(data.get("max_speed", "")),
-        "full_name": str(data.get("full_name", "")),
-        "passport": str(data.get("passport", "")),
-        "address": str(data.get("address", "")),
-        "id": str(data.get("id", "")),
-    }
+    values = [
+        data.get("vehicle_type", ""),
+        "СИМ",
+        data.get("brand", ""),
+        data.get("model", ""),
+        data.get("year", ""),
+        data.get("vin", ""),
+        data.get("power", ""),
+        data.get("max_speed", ""),
+        data.get("full_name", ""),
+        data.get("passport", ""),
+        data.get("address", ""),
+        str(data.get("id", "")),
+    ]
 
-    writer.update_page_form_field_values(writer.pages[0], values)
+    widgets = list(page.widgets())
+    for i, field in enumerate(widgets):
+        if i >= len(field_order):
+            break
+        if values[i]:
+            field.field_value = str(values[i])
+            field.update()
 
     output_path = os.path.join(BASE_DIR, f"order_{data.get('id', '1')}.pdf")
-    with open(output_path, "wb") as f:
-        writer.write(f)
-
-    # Диагностика: что записалось
-    check = PdfReader(output_path)
-    filled = check.get_fields()
-    if filled:
-        for k, v in filled.items():
-            send_telegram(f"📦 {k} = {v.get('/V', 'empty')}")
-    else:
-        send_telegram("❌ Поля не найдены после записи")
-
+    doc.save(output_path)
+    doc.close()
     return output_path
