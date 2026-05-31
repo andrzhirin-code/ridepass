@@ -1,14 +1,22 @@
 import os
+import requests
 from pypdf import PdfReader, PdfWriter
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
+ADMIN_ID = 5171781123
+BOT_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
+
+def send_telegram(text: str):
+    url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    requests.post(url, data={"chat_id": ADMIN_ID, "text": text})
 
 def fill_order_template(data: dict) -> str:
-    # Диагностика: какие поля видит pypdf
+    # Диагностика: какие поля в шаблоне
     reader = PdfReader(TEMPLATE_PATH)
     fields = reader.get_fields()
-    print(f"DEBUG fields: {list(fields.keys()) if fields else 'None'}")
+    field_names = list(fields.keys()) if fields else []
+    send_telegram(f"🔍 Поля в шаблоне: {field_names}")
 
     writer = PdfWriter()
     writer.append(reader)
@@ -37,7 +45,10 @@ def fill_order_template(data: dict) -> str:
     # Диагностика: что записалось
     check = PdfReader(output_path)
     filled = check.get_fields()
-    for k, v in (filled or {}).items():
-        print(f"DEBUG {k} = {v.get('/V', 'empty')}")
+    if filled:
+        for k, v in filled.items():
+            send_telegram(f"📦 {k} = {v.get('/V', 'empty')}")
+    else:
+        send_telegram("❌ Поля не найдены после записи")
 
     return output_path
