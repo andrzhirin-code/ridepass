@@ -5,10 +5,10 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 
 def fill_order_template(data: dict) -> str:
-    # ДИАГНОСТИКА: смотрим, какие поля есть в шаблоне
+    # Диагностика: какие поля видит pypdf
     reader = PdfReader(TEMPLATE_PATH)
-    fields_before = reader.get_fields()
-    print(f"DEBUG: поля в шаблоне: {fields_before.keys() if fields_before else 'None'}")
+    fields = reader.get_fields()
+    print(f"DEBUG fields: {list(fields.keys()) if fields else 'None'}")
 
     writer = PdfWriter()
     writer.append(reader)
@@ -34,11 +34,10 @@ def fill_order_template(data: dict) -> str:
     with open(output_path, "wb") as f:
         writer.write(f)
 
-    # ДИАГНОСТИКА: смотрим, что записалось
-    result = PdfReader(output_path)
-    fields_after = result.get_fields()
-    print(f"DEBUG: поля после заполнения: {fields_after.keys() if fields_after else 'None'}")
-    for k, v in (fields_after or {}).items():
-        print(f"DEBUG: {k} = {v.get('/V', 'НЕТ ЗНАЧЕНИЯ')}")
+    # Диагностика: что записалось
+    check = PdfReader(output_path)
+    filled = check.get_fields()
+    for k, v in (filled or {}).items():
+        print(f"DEBUG {k} = {v.get('/V', 'empty')}")
 
     return output_path
