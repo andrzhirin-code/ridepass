@@ -342,10 +342,6 @@ async def handle_admin(callback: CallbackQuery):
     order_id = int(order_id_str)
     order = get_order(order_id)
     
-    # Отправляем лог себе в Telegram
-    await bot.send_message(ADMIN_ID, f"🔍 order: {order}")
-    await bot.send_message(ADMIN_ID, f"🔍 type: {type(order)}")
-    
     if not order:
         await callback.message.edit_text(f"❌ Заявка #{order_id} не найдена")
         return
@@ -355,24 +351,24 @@ async def handle_admin(callback: CallbackQuery):
             today = datetime.now().strftime("%d.%m.%Y")
             expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
             
-            def safe_str(val):
-                return str(val) if val is not None else ""
+            def get_clean(val):
+                if val is None or str(val).strip() == "" or str(val).strip().lower() in ["none", "null"]:
+                    return "—"
+                return str(val).strip()
             
             order_data = {
-                "id": safe_str(order[0]),
-                "vehicle_type": safe_str(order[2]),
-                "brand": safe_str(order[3]),
-                "model": safe_str(order[4]),
-                "year": safe_str(order[5]),
-                "power": safe_str(order[6]),
-                "vin": safe_str(order[7]),
-                "full_name": safe_str(order[8]),
-                "passport": safe_str(order[9]),
-                "address": safe_str(order[10]),
-                "max_speed": safe_str(order[12]),
+                "id": get_clean(order[0]),
+                "vehicle_type": get_clean(order[2]),
+                "brand": get_clean(order[3]),
+                "model": get_clean(order[4]),
+                "year": get_clean(order[5]),
+                "vin": get_clean(order[7]),
+                "power": get_clean(order[6]),
+                "max_speed": get_clean(order[12]),
+                "full_name": get_clean(order[8]),
+                "passport": get_clean(order[9]),
+                "address": get_clean(order[10]),
             }
-            
-            await bot.send_message(ADMIN_ID, f"📦 order_data: {order_data}")
             
             pdf_path = await asyncio.to_thread(fill_order_template, order_data)
             document = FSInputFile(pdf_path)
@@ -385,7 +381,6 @@ async def handle_admin(callback: CallbackQuery):
             
         except Exception as e:
             await callback.message.edit_text(f"❌ Ошибка: {e}")
-            await bot.send_message(ADMIN_ID, f"❌ Ошибка: {e}")
             
     elif action == "reject":
         update_order_status(order_id, "rejected")
