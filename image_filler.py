@@ -30,8 +30,10 @@ def fill_order_template(data: dict) -> str:
         "address": str(data.get("address", "—")),
     }
 
+    widgets = list(page.widgets() or [])
+
     text_items = []
-    for field in page.widgets():
+    for field in widgets:
         name = field.field_name
         if name not in values:
             continue
@@ -40,10 +42,12 @@ def fill_order_template(data: dict) -> str:
             values[name],
             fitz.Point(rect.x0 + 3, rect.y1 - 4)
         ))
+
+    for field in widgets:
         page.delete_widget(field)
 
     for text, point in text_items:
-        page.insert_text(point, text, fontname="ari", fontsize=11, color=(0.12, 0.16, 0.2))
+        page.insert_text(point, text, fontname="ari", fontsize=11, color=(0, 0, 0))
 
     output_path = os.path.join(BASE_DIR, f"order_{data.get('id', '1')}.pdf")
     doc.save(output_path, garbage=4, deflate=True, clean=True)
