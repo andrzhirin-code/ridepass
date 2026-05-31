@@ -10,37 +10,28 @@ def fill_order_template(data: dict) -> str:
     page = doc[0]
     page.insert_font(fontname="ari", fontfile=FONT_PATH)
 
-    # Список значений в том порядке, в котором поля идут в PDF
-    values = [
-        data.get("vehicle_type", ""),
-        "СИМ",
-        data.get("brand", ""),
-        data.get("model", ""),
-        data.get("year", ""),
-        data.get("vin", ""),
-        data.get("power", ""),
-        data.get("max_speed", ""),
-        data.get("full_name", ""),
-        data.get("passport", ""),
-        data.get("address", ""),
-        str(data.get("id", "")),
-    ]
+    values = {
+        "vehicle_type": data.get("vehicle_type", ""),
+        "category": "СИМ",
+        "brand": data.get("brand", ""),
+        "model": data.get("model", ""),
+        "year": data.get("year", ""),
+        "vin": data.get("vin", ""),
+        "power": data.get("power", ""),
+        "max_speed": data.get("max_speed", ""),
+        "full_name": data.get("full_name", ""),
+        "passport": data.get("passport", ""),
+        "address": data.get("address", ""),
+        "id": str(data.get("id", "")),
+    }
 
-    for i, field in enumerate(page.widgets()):
-        if i >= len(values):
-            break
-        if values[i]:
-            field.field_value = str(values[i])
-            field.update()
-            # Удаляем рамку (если нужна)
+    for field in page.widgets():
+        name = field.field_name
+        if name in values and values[name]:
+            field.field_value = str(values[name])
             field.border_width = 0
             field.fill_color = None
-
-    # Убираем все рамки и фон полей
-    for field in page.widgets():
-        field.border_width = 0
-        field.fill_color = None
-        field.update()
+            field.update()
 
     output_path = os.path.join(BASE_DIR, f"order_{data.get('id', '1')}.pdf")
     doc.save(output_path)
