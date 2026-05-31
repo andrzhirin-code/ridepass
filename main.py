@@ -424,6 +424,9 @@ async def main():
     
     app = web.Application()
     
+    # Healthcheck endpoint для cron-job.org (держит сервер живым)
+    app.router.add_get("/ping", lambda request: web.Response(text="OK"))
+    
     webhook_requests_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
     webhook_requests_handler.register(app, path=WEBHOOK_PATH)
     setup_application(app, dp, bot=bot)
