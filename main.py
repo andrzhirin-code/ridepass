@@ -15,7 +15,7 @@ from aiogram.types import (
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
-from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance
+from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance, generate_unique_number, generate_doc_hash
 from image_filler import fill_order_template
 
 API_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
@@ -45,21 +45,26 @@ back_button = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# ========== FSM ==========
+# ========== FSM (ВСЕ ПОЛЯ) ==========
 class Form(StatesGroup):
-    vehicle_type = State()
-    custom_type = State()
-    brand = State()
-    model = State()
-    year = State()
-    power = State()
-    custom_power = State()
-    serial = State()
-    full_name = State()
-    passport = State()
-    address = State()
-    phone = State()
-    speed = State()
+    vehicle_type_vision = State()  # Вид техники
+    brand = State()                # Марка
+    model = State()                # Модель
+    year = State()                 # Год выпуска
+    frame_number = State()         # Номер рамы
+    engine_number = State()        # Номер двигателя
+    engine_capacity = State()      # Объем двигателя
+    strokes = State()              # Количество тактов
+    cooling = State()              # Охлаждение
+    transmission = State()         # Коробка передач
+    fuel_system = State()          # Топливная система
+    front_brake = State()          # Передняя тормозная система
+    rear_brake = State()           # Задняя тормозная система
+    weight = State()               # Масса без нагрузки
+    full_name = State()            # ФИО владельца
+    passport = State()             # Паспорт
+    address = State()              # Адрес
+    phone = State()                # Телефон
 
 # ========== СТАРТ ==========
 @dp.message(Command("start"))
@@ -80,15 +85,14 @@ async def cmd_start(message: types.Message, state: FSMContext):
     
     await message.answer(
         "🌟 Добро пожаловать в RidePass 🌟\n\n"
-        "Оформление документов на электротранспорт — быстро, удобно и полностью онлайн.\n\n"
+        "Оформление документов на мототехнику — быстро, удобно и полностью онлайн.\n\n"
         "📋 Как получить документы:\n"
         "1️⃣ Нажмите «Получить документы»\n"
-        "2️⃣ Выберите тип транспортного средства\n"
-        "3️⃣ Укажите данные\n"
-        "4️⃣ Оплатите фиксированную стоимость по реквизитам\n"
-        "5️⃣ Нажмите «Я оплатил»\n"
-        "6️⃣ Дождитесь подтверждения менеджера\n"
-        "7️⃣ Получите готовый PDF-документ прямо в боте",
+        "2️⃣ Укажите данные\n"
+        "3️⃣ Оплатите фиксированную стоимость по реквизитам\n"
+        "4️⃣ Нажмите «Я оплатил»\n"
+        "5️⃣ Дождитесь подтверждения менеджера\n"
+        "6️⃣ Получите готовый PDF-документ прямо в боте",
         reply_markup=main_menu
     )
 
@@ -99,184 +103,223 @@ async def back_to_menu(message: types.Message, state: FSMContext):
 
 @dp.message(F.text == "Получить документы")
 async def get_documents(message: types.Message, state: FSMContext):
-    await state.set_state(Form.vehicle_type)
-    kb = ReplyKeyboardMarkup(
-        keyboard=[
-            [KeyboardButton(text="Электро Самокат"), KeyboardButton(text="Электро Велосипед")],
-            [KeyboardButton(text="Моноколесо"), KeyboardButton(text="Электро Скутер")],
-            [KeyboardButton(text="Другое"), KeyboardButton(text="Назад")]
-        ],
-        resize_keyboard=True
-    )
-    await message.answer("1. Выберите тип Транспортного средства:", reply_markup=kb)
+    await state.set_state(Form.vehicle_type_vision)
+    await message.answer("1️⃣ Введите вид техники (например: Квадроцикл, Мотоцикл, Скутер):", reply_markup=back_button)
 
-@dp.message(Form.vehicle_type)
-async def process_vehicle_type(message: types.Message, state: FSMContext):
-    if message.text == "Другое":
-        await state.set_state(Form.custom_type)
-        await message.answer("Укажите тип вашего ТС:", reply_markup=back_button)
-    elif message.text == "Назад":
+# ========== ВСЕ ВОПРОСЫ АНКЕТЫ ==========
+@dp.message(Form.vehicle_type_vision)
+async def process_vehicle_type_vision(message: types.Message, state: FSMContext):
+    if message.text == "Назад":
         await back_to_menu(message, state)
     else:
-        await state.update_data(vehicle_type=message.text)
+        await state.update_data(vehicle_type_vision=message.text)
         await state.set_state(Form.brand)
-        await message.answer("2. Введите марку вашего Транспортного средства:", reply_markup=back_button)
-
-@dp.message(Form.custom_type)
-async def process_custom_type(message: types.Message, state: FSMContext):
-    if message.text == "Назад":
-        await get_documents(message, state)
-    else:
-        await state.update_data(vehicle_type=message.text)
-        await state.set_state(Form.brand)
-        await message.answer("2. Введите марку вашего Транспортного средства:", reply_markup=back_button)
+        await message.answer("2️⃣ Введите марку:", reply_markup=back_button)
 
 @dp.message(Form.brand)
 async def process_brand(message: types.Message, state: FSMContext):
     if message.text == "Назад":
-        await get_documents(message, state)
+        await state.set_state(Form.vehicle_type_vision)
+        await message.answer("1️⃣ Введите вид техники:", reply_markup=back_button)
     else:
         await state.update_data(brand=message.text)
         await state.set_state(Form.model)
-        await message.answer("3. Введите модель вашего Транспортного средства:", reply_markup=back_button)
+        await message.answer("3️⃣ Введите модель:", reply_markup=back_button)
 
 @dp.message(Form.model)
 async def process_model(message: types.Message, state: FSMContext):
     if message.text == "Назад":
         await state.set_state(Form.brand)
-        await message.answer("2. Введите марку вашего Транспортного средства:", reply_markup=back_button)
+        await message.answer("2️⃣ Введите марку:", reply_markup=back_button)
     else:
         await state.update_data(model=message.text)
         await state.set_state(Form.year)
-        await message.answer("4. Введите год выпуска:", reply_markup=back_button)
+        await message.answer("4️⃣ Введите год выпуска:", reply_markup=back_button)
 
 @dp.message(Form.year)
 async def process_year(message: types.Message, state: FSMContext):
     if message.text == "Назад":
         await state.set_state(Form.model)
-        await message.answer("3. Введите модель вашего Транспортного средства:", reply_markup=back_button)
+        await message.answer("3️⃣ Введите модель:", reply_markup=back_button)
     else:
         await state.update_data(year=message.text)
-        await state.set_state(Form.power)
-        kb = ReplyKeyboardMarkup(
-            keyboard=[
-                [KeyboardButton(text="249w"), KeyboardButton(text="3000w")],
-                [KeyboardButton(text="Указать свою"), KeyboardButton(text="Назад")]
-            ],
-            resize_keyboard=True
-        )
-        await message.answer(
-            "5. Выберите желаемую мощность вашего Транспортного Средства:\n\n"
-            "Если у вас нет водительского удостоверения с категорией М1 — выбирайте 249w.\n"
-            "Если у вас есть водительское удостоверение с категорией М1 — выбирайте 3000w.\n"
-            "Если нужна другая мощность — нажмите «Указать свою».",
-            reply_markup=kb
-        )
+        await state.set_state(Form.frame_number)
+        await message.answer("5️⃣ Введите номер рамы:", reply_markup=back_button)
 
-@dp.message(Form.power)
-async def process_power(message: types.Message, state: FSMContext):
+@dp.message(Form.frame_number)
+async def process_frame_number(message: types.Message, state: FSMContext):
     if message.text == "Назад":
         await state.set_state(Form.year)
-        await message.answer("4. Введите год выпуска:", reply_markup=back_button)
-    elif message.text == "Указать свою":
-        await state.set_state(Form.custom_power)
-        await message.answer("Введите мощность в Ваттах:", reply_markup=back_button)
+        await message.answer("4️⃣ Введите год выпуска:", reply_markup=back_button)
     else:
-        await state.update_data(power=message.text)
-        await state.set_state(Form.serial)
-        kb = ReplyKeyboardMarkup(
-            keyboard=[[KeyboardButton(text="Отсутствует")], [KeyboardButton(text="Назад")]],
-            resize_keyboard=True
-        )
-        await message.answer("6. Введите идентификационный номер вашего Транспортного средства (номер рамы/мотора и т.д.):\n\nЕсли такого номера нет, нажмите «Отсутствует».", reply_markup=kb)
+        await state.update_data(frame_number=message.text)
+        await state.set_state(Form.engine_number)
+        await message.answer("6️⃣ Введите номер двигателя:", reply_markup=back_button)
 
-@dp.message(Form.custom_power)
-async def process_custom_power(message: types.Message, state: FSMContext):
+@dp.message(Form.engine_number)
+async def process_engine_number(message: types.Message, state: FSMContext):
     if message.text == "Назад":
-        await state.set_state(Form.power)
-        await message.answer("5. Выберите желаемую мощность:", reply_markup=back_button)
+        await state.set_state(Form.frame_number)
+        await message.answer("5️⃣ Введите номер рамы:", reply_markup=back_button)
     else:
-        await state.update_data(power=message.text)
-        await state.set_state(Form.serial)
-        kb = ReplyKeyboardMarkup(
-            keyboard=[[KeyboardButton(text="Отсутствует")], [KeyboardButton(text="Назад")]],
-            resize_keyboard=True
-        )
-        await message.answer("6. Введите идентификационный номер:", reply_markup=kb)
+        await state.update_data(engine_number=message.text)
+        await state.set_state(Form.engine_capacity)
+        await message.answer("7️⃣ Введите объём двигателя (в куб. см):", reply_markup=back_button)
 
-@dp.message(Form.serial)
-async def process_serial(message: types.Message, state: FSMContext):
+@dp.message(Form.engine_capacity)
+async def process_engine_capacity(message: types.Message, state: FSMContext):
     if message.text == "Назад":
-        await state.set_state(Form.power)
-        await message.answer("5. Выберите желаемую мощность:", reply_markup=back_button)
+        await state.set_state(Form.engine_number)
+        await message.answer("6️⃣ Введите номер двигателя:", reply_markup=back_button)
     else:
-        serial = "" if message.text == "Отсутствует" else message.text
-        await state.update_data(serial=serial)
+        await state.update_data(engine_capacity=message.text)
+        await state.set_state(Form.strokes)
+        await message.answer("8️⃣ Введите количество тактов (2 или 4):", reply_markup=back_button)
+
+@dp.message(Form.strokes)
+async def process_strokes(message: types.Message, state: FSMContext):
+    if message.text == "Назад":
+        await state.set_state(Form.engine_capacity)
+        await message.answer("7️⃣ Введите объём двигателя:", reply_markup=back_button)
+    else:
+        await state.update_data(strokes=message.text)
+        await state.set_state(Form.cooling)
+        await message.answer("9️⃣ Введите тип охлаждения (воздушное/жидкостное):", reply_markup=back_button)
+
+@dp.message(Form.cooling)
+async def process_cooling(message: types.Message, state: FSMContext):
+    if message.text == "Назад":
+        await state.set_state(Form.strokes)
+        await message.answer("8️⃣ Введите количество тактов:", reply_markup=back_button)
+    else:
+        await state.update_data(cooling=message.text)
+        await state.set_state(Form.transmission)
+        await message.answer("🔟 Введите тип коробки передач (механика/автомат/вариатор):", reply_markup=back_button)
+
+@dp.message(Form.transmission)
+async def process_transmission(message: types.Message, state: FSMContext):
+    if message.text == "Назад":
+        await state.set_state(Form.cooling)
+        await message.answer("9️⃣ Введите тип охлаждения:", reply_markup=back_button)
+    else:
+        await state.update_data(transmission=message.text)
+        await state.set_state(Form.fuel_system)
+        await message.answer("1️⃣1️⃣ Введите тип топливной системы (карбюратор/инжектор):", reply_markup=back_button)
+
+@dp.message(Form.fuel_system)
+async def process_fuel_system(message: types.Message, state: FSMContext):
+    if message.text == "Назад":
+        await state.set_state(Form.transmission)
+        await message.answer("🔟 Введите тип коробки передач:", reply_markup=back_button)
+    else:
+        await state.update_data(fuel_system=message.text)
+        await state.set_state(Form.front_brake)
+        await message.answer("1️⃣2️⃣ Введите тип передней тормозной системы (дисковые/барабанные):", reply_markup=back_button)
+
+@dp.message(Form.front_brake)
+async def process_front_brake(message: types.Message, state: FSMContext):
+    if message.text == "Назад":
+        await state.set_state(Form.fuel_system)
+        await message.answer("1️⃣1️⃣ Введите тип топливной системы:", reply_markup=back_button)
+    else:
+        await state.update_data(front_brake=message.text)
+        await state.set_state(Form.rear_brake)
+        await message.answer("1️⃣3️⃣ Введите тип задней тормозной системы (дисковые/барабанные):", reply_markup=back_button)
+
+@dp.message(Form.rear_brake)
+async def process_rear_brake(message: types.Message, state: FSMContext):
+    if message.text == "Назад":
+        await state.set_state(Form.front_brake)
+        await message.answer("1️⃣2️⃣ Введите тип передней тормозной системы:", reply_markup=back_button)
+    else:
+        await state.update_data(rear_brake=message.text)
+        await state.set_state(Form.weight)
+        await message.answer("1️⃣4️⃣ Введите массу без нагрузки (в кг):", reply_markup=back_button)
+
+@dp.message(Form.weight)
+async def process_weight(message: types.Message, state: FSMContext):
+    if message.text == "Назад":
+        await state.set_state(Form.rear_brake)
+        await message.answer("1️⃣3️⃣ Введите тип задней тормозной системы:", reply_markup=back_button)
+    else:
+        await state.update_data(weight=message.text)
         await state.set_state(Form.full_name)
-        await message.answer("7. Введите ваше ФИО, которое будет указано в документе как «собственник»:", reply_markup=back_button)
+        await message.answer("1️⃣5️⃣ Введите ваше ФИО полностью:", reply_markup=back_button)
 
 @dp.message(Form.full_name)
 async def process_full_name(message: types.Message, state: FSMContext):
     if message.text == "Назад":
-        await state.set_state(Form.serial)
-        await message.answer("6. Введите идентификационный номер:", reply_markup=back_button)
+        await state.set_state(Form.weight)
+        await message.answer("1️⃣4️⃣ Введите массу без нагрузки:", reply_markup=back_button)
     else:
         await state.update_data(full_name=message.text)
         await state.set_state(Form.passport)
-        await message.answer("8. Введите серию и номер вашего Паспорта:", reply_markup=back_button)
+        await message.answer("1️⃣6️⃣ Введите серию и номер паспорта:", reply_markup=back_button)
 
 @dp.message(Form.passport)
 async def process_passport(message: types.Message, state: FSMContext):
     if message.text == "Назад":
         await state.set_state(Form.full_name)
-        await message.answer("7. Введите ваше ФИО:", reply_markup=back_button)
+        await message.answer("1️⃣5️⃣ Введите ваше ФИО:", reply_markup=back_button)
     else:
         await state.update_data(passport=message.text)
         await state.set_state(Form.address)
-        await message.answer("9. Введите адрес вашего проживания:", reply_markup=back_button)
+        await message.answer("1️⃣7️⃣ Введите адрес регистрации:", reply_markup=back_button)
 
 @dp.message(Form.address)
 async def process_address(message: types.Message, state: FSMContext):
     if message.text == "Назад":
         await state.set_state(Form.passport)
-        await message.answer("8. Введите серию и номер Паспорта:", reply_markup=back_button)
+        await message.answer("1️⃣6️⃣ Введите серию и номер паспорта:", reply_markup=back_button)
     else:
         await state.update_data(address=message.text)
         await state.set_state(Form.phone)
-        await message.answer("10. Введите номер телефона владельца:\n\nМожно написать без +7 — бот добавит автоматически.\nПример: 9991234567", reply_markup=back_button)
+        await message.answer("1️⃣8️⃣ Введите номер телефона:\nПример: 9991234567", reply_markup=back_button)
 
 @dp.message(Form.phone)
 async def process_phone(message: types.Message, state: FSMContext):
     if message.text == "Назад":
         await state.set_state(Form.address)
-        await message.answer("9. Введите адрес вашего проживания:", reply_markup=back_button)
+        await message.answer("1️⃣7️⃣ Введите адрес регистрации:", reply_markup=back_button)
     else:
         await state.update_data(phone=message.text)
-        await state.set_state(Form.speed)
-        await message.answer("11. Введите максимальную скорость (км/ч):", reply_markup=back_button)
-
-@dp.message(Form.speed)
-async def process_speed(message: types.Message, state: FSMContext):
-    if message.text == "Назад":
-        await state.set_state(Form.phone)
-        await message.answer("10. Введите номер телефона владельца:", reply_markup=back_button)
-    else:
-        await state.update_data(speed=message.text)
         data = await state.get_data()
         
+        # Генерируем уникальные номера и хеш
+        unique_number = generate_unique_number()
+        today = datetime.now().strftime("%d.%m.%Y")
+        entry_number = f"DP-{unique_number[1:]}"
+        
+        # Создаём слепок данных для хеша
+        data_snapshot = f"{data.get('brand')}{data.get('model')}{data.get('frame_number')}{data.get('engine_number')}{today}"
+        doc_hash = generate_doc_hash(data_snapshot)
+        
+        # Сохраняем в БД
         order_id = add_order((
             message.from_user.id,
-            data.get('vehicle_type'),
+            unique_number,              # unique_doc_number
+            doc_hash,                   # doc_hash
+            "DP",                       # series
+            today,                      # issue_date
+            entry_number,               # entry_number
+            data.get('vehicle_type_vision'),
             data.get('brand'),
             data.get('model'),
             data.get('year'),
-            data.get('power'),
-            data.get('serial', ''),
+            data.get('frame_number'),
+            data.get('engine_number'),
+            "Спортинвентарь",           # vehicle_type_static
+            data.get('engine_capacity'),
+            data.get('strokes'),
+            data.get('cooling'),
+            data.get('transmission'),
+            data.get('fuel_system'),
+            data.get('front_brake'),
+            data.get('rear_brake'),
+            data.get('weight'),
             data.get('full_name'),
             data.get('passport'),
             data.get('address'),
-            data.get('phone'),
-            data.get('speed')
         ))
         
         update_order_status(order_id, "waiting_confirm")
@@ -309,17 +352,26 @@ async def i_paid(message: types.Message):
         order_id = order[0]
         text = (
             f"🔔 НОВАЯ ЗАЯВКА #{order_id}\n\n"
-            f"📌 Тип ТС: {order[2]}\n"
-            f"🏭 Марка: {order[3]}\n"
-            f"🔧 Модель: {order[4]}\n"
-            f"📅 Год: {order[5]}\n"
-            f"⚡ Мощность: {order[6]}\n"
-            f"🔢 Серийник: {order[7] if order[7] else 'Отсутствует'}\n"
-            f"👤 ФИО: {order[8]}\n"
-            f"🆔 Паспорт: {order[9]}\n"
-            f"🏠 Адрес: {order[10]}\n"
-            f"📱 Телефон: {order[11]}\n"
-            f"💨 Скорость: {order[12]} км/ч"
+            f"📌 № паспорта: {order[2]}\n"
+            f"📌 № записи: {order[6]}\n"
+            f"🏍 Вид техники: {order[7]}\n"
+            f"🏭 Марка: {order[8]}\n"
+            f"🔧 Модель: {order[9]}\n"
+            f"📅 Год: {order[10]}\n"
+            f"🔢 Номер рамы: {order[11]}\n"
+            f"🔢 Номер двигателя: {order[12]}\n"
+            f"⚡ Объём: {order[14]}\n"
+            f"🔄 Тактов: {order[15]}\n"
+            f"❄️ Охлаждение: {order[16]}\n"
+            f"⚙️ Коробка: {order[17]}\n"
+            f"⛽ Топливная: {order[18]}\n"
+            f"🛑 Передний тормоз: {order[19]}\n"
+            f"🛑 Задний тормоз: {order[20]}\n"
+            f"⚖️ Масса: {order[21]}\n"
+            f"👤 ФИО: {order[22]}\n"
+            f"🆔 Паспорт: {order[23]}\n"
+            f"🏠 Адрес: {order[24]}\n"
+            f"📱 Телефон: {order[25] if len(order) > 25 else ''}\n"
         )
         
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -349,35 +401,43 @@ async def handle_admin(callback: CallbackQuery):
     if action == "approve":
         try:
             today = datetime.now().strftime("%d.%m.%Y")
-            expiry = (datetime.now() + timedelta(days=365)).strftime("%d.%m.%Y")
             
             def get_clean(val):
-                if val is None or str(val).strip() == "" or str(val).strip().lower() in ["none", "null"]:
-                    return "—"
-                return str(val).strip()
+                return str(val) if val is not None else ""
             
             order_data = {
-                "id": get_clean(order[0]),
-                "vehicle_type": get_clean(order[2]),
-                "brand": get_clean(order[3]),
-                "model": get_clean(order[4]),
-                "year": get_clean(order[5]),
-                "vin": get_clean(order[7]),
-                "power": get_clean(order[6]),
-                "max_speed": get_clean(order[12]),
-                "full_name": get_clean(order[8]),
-                "passport": get_clean(order[9]),
-                "address": get_clean(order[10]),
+                "record_number": get_clean(order[2]),      # unique_doc_number
+                "series": get_clean(order[4]),            # series
+                "issue_date": get_clean(order[5]),        # issue_date
+                "entry_number": get_clean(order[6]),      # entry_number
+                "vehicle_type_vision": get_clean(order[7]),
+                "brand": get_clean(order[8]),
+                "model": get_clean(order[9]),
+                "year": get_clean(order[10]),
+                "frame_number": get_clean(order[11]),
+                "engine_number": get_clean(order[12]),
+                "engine_capacity": get_clean(order[14]),
+                "strokes": get_clean(order[15]),
+                "cooling": get_clean(order[16]),
+                "transmission": get_clean(order[17]),
+                "fuel_system": get_clean(order[18]),
+                "front_brake": get_clean(order[19]),
+                "rear_brake": get_clean(order[20]),
+                "weight": get_clean(order[21]),
+                "full_name": get_clean(order[22]),
+                "passport": get_clean(order[23]),
+                "address": get_clean(order[24]),
+                "doc_hash": get_clean(order[3]),          # doc_hash
             }
             
             pdf_path = await asyncio.to_thread(fill_order_template, order_data)
             document = FSInputFile(pdf_path)
-            await bot.send_document(order[1], document, caption="✅ Ваш платеж подтверждён! Документы готовы.")
+            await bot.send_document(order[1], document, caption="✅ Ваш платеж подтверждён! Паспорт мототехники готов.")
             
             if os.path.exists(pdf_path):
                 os.remove(pdf_path)
             
-            await callback.message.edit_text(f"✅ Заявка #{order_id} подтверждена. PDF отправлен.")
+            await callback.message.edit_text(f"✅ Заявка #{order_id} подтверждена. Документ отправлен.")
             
         except Exception as e:
             await callback.message.edit_text(f"❌ Ошибка: {e}")
@@ -424,7 +484,7 @@ async def main():
     
     app = web.Application()
     
-    # Healthcheck endpoint для cron-job.org (держит сервер живым)
+    # Healthcheck для cron-job.org
     app.router.add_get("/ping", lambda request: web.Response(text="OK"))
     
     webhook_requests_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
