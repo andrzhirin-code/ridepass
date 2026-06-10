@@ -82,10 +82,10 @@ async def cmd_start(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     bot_username = (await bot.get_me()).username
     referral_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
-    add_user(user_id, referral_link)
+    await add_user(user_id, referral_link)
     
     if referrer_id:
-        update_user_balance(referrer_id, 500)
+        await update_user_balance(referrer_id, 500)
         await bot.send_message(referrer_id, "🎉 Вам начислено 500₽ за приглашённого друга!")
     
     await message.answer(
@@ -291,14 +291,14 @@ async def process_phone(message: types.Message, state: FSMContext):
         data = await state.get_data()
         
         try:
-            unique_number = generate_unique_number()
+            unique_number = await generate_unique_number()
             today = datetime.now().strftime("%d.%m.%Y")
             entry_number = f"DP-{unique_number[1:]}"
             
             data_snapshot = f"{data.get('brand')}{data.get('model')}{data.get('frame_number')}{data.get('engine_number')}{today}{uuid.uuid4()}"
             doc_hash = generate_doc_hash(data_snapshot)
             
-            order_id = add_order((
+            order_id = await add_order((
                 message.from_user.id,
                 unique_number,
                 doc_hash,
@@ -329,7 +329,7 @@ async def process_phone(message: types.Message, state: FSMContext):
                 await message.answer("❌ Ошибка при сохранении данных. Попробуйте позже.")
                 return
             
-            update_order_status(order_id, "waiting_confirm")
+            await update_order_status(order_id, "waiting_confirm")
             
             await message.answer(
                 "💳 Для оформления заявки оплатите услугу\n\n"
@@ -357,7 +357,7 @@ async def i_paid(message: types.Message):
         reply_markup=main_menu
     )
     
-    pending = get_pending_orders()
+    pending = await get_pending_orders()
     
     for order in pending:
         order_id = order["id"]
@@ -402,7 +402,7 @@ async def handle_admin(callback: CallbackQuery):
     
     action, order_id_str = callback.data.split("_")
     order_id = int(order_id_str)
-    order = get_order(order_id)
+    order = await get_order(order_id)
     
     if not order:
         await callback.message.edit_text(f"❌ Заявка #{order_id} не найдена")
@@ -451,14 +451,14 @@ async def handle_admin(callback: CallbackQuery):
             await callback.message.edit_text(f"❌ Ошибка: {e}")
             
     elif action == "reject":
-        update_order_status(order_id, "rejected")
+        await update_order_status(order_id, "rejected")
         await bot.send_message(order["user_id"], "❌ Платёж не подтверждён. Свяжитесь с поддержкой.")
         await callback.message.edit_text(f"❌ Заявка #{order_id} отклонена.")
 
 # ========== РЕФЕРАЛКА ==========
 @dp.message(F.text == "Заработай с нами/реферальная система")
 async def referral(message: types.Message):
-    user = get_user(message.from_user.id)
+    user = await get_user(message.from_user.id)
     if user:
         text = (
             f"💰 Мой кабинет RidePass\n\n"
@@ -490,7 +490,6 @@ async def on_startup():
 async def main():
     app = web.Application()
     
-    # HTML-страница для проверки документов
     async def verification_page(request):
         return web.Response(
             content_type="text/html",
@@ -557,7 +556,7 @@ async def main():
         if not code:
             return web.json_response({"detail": "Не указан номер документа"}, status=400)
         
-        order = get_order_by_entry_number(code)
+        order = await get_order_by_entry_number(code)
         if not order:
             return web.json_response({"detail": "Документ не найден или поддельный"}, status=404)
         
