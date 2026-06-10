@@ -14,11 +14,11 @@ def fill_order_template(data: dict) -> str:
     doc = fitz.open(TEMPLATE_PATH)
     page = doc[0]
 
+    # Регистрация шрифта для кириллицы
+    font_name = "Helvetica"
     if os.path.exists(FONT_PATH):
-        page.insert_font(fontname="ari", fontfile=FONT_PATH)
-        fontname = "ari"
-    else:
-        fontname = "helv"
+        font_name = "ArialCustom"
+        page.insert_font(fontname=font_name, fontfile=FONT_PATH)
 
     # Данные для заполнения
     field_mapping = {
@@ -47,17 +47,20 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
-    # 1. Заполняем поля
+    # Заполняем поля
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
+            if os.path.exists(FONT_PATH):
+                field.text_color = (0, 0, 0)
+                field.fontsize = 11
             field.field_value = field_mapping[name]
             field.update()
 
-    # 2. Запекаем форму (делаем текст статичным, удаляем интерактивность)
-    doc.flatten_form()
+    # Ключевой момент: запекаем виджеты (текст становится видимым)
+    doc.bake_widgets()
 
-    # 3. QR-код (большой, в правом углу, сдвинут вниз)
+    # QR-код
     verification_url = f"https://ridepass.onrender.com/check?code={data.get('entry_number', '')}"
     qr = qrcode.QRCode(box_size=20, border=4)
     qr.add_data(verification_url)
