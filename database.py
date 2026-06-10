@@ -1,24 +1,35 @@
 import os
 import hashlib
 import uuid
+import socket
 from supabase import create_client, Client
 
-# Временный фикс: вписываем напрямую
-SUPABASE_URL = "https://sjdpobszj1admakjzqw.supabase.co"
-SUPABASE_KEY = "sb_publishable_4kQrfjalJ_1VUqMa_coWqw_vkxSj18R"
+# Проверка интернета
+def check_connection():
+    try:
+        socket.create_connection(("google.com", 80), timeout=5)
+        return True
+    except Exception as e:
+        print(f"Connection check failed: {e}")
+        return False
 
-# Если переменные окружения есть — используем их (приоритет выше)
-if os.getenv("SUPABASE_URL"):
-    SUPABASE_URL = os.getenv("SUPABASE_URL")
-if os.getenv("SUPABASE_KEY"):
-    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+print(f"Internet connection: {check_connection()}")
+
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip()
+
+print(f"SUPABASE_URL: {SUPABASE_URL}")
+print(f"SUPABASE_KEY exists: {bool(SUPABASE_KEY)}")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY")
 
-print(f"Connecting to Supabase: {SUPABASE_URL}")
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+try:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    print("Supabase client created successfully")
+except Exception as e:
+    print(f"CRITICAL ERROR: {e}")
+    raise e
 
 def generate_unique_number():
     response = supabase.table("orders").select("unique_doc_number").order("id", desc=True).limit(1).execute()
