@@ -1,52 +1,40 @@
 import os
 import hashlib
 import uuid
-import socket
 import requests
-from supabase import create_client, Client
+import json
 
-# Telegram для отправки диагностики
-ADMIN_ID = 5171781123
-BOT_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-def send_telegram(text):
-    try:
-        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-        requests.post(url, data={"chat_id": ADMIN_ID, "text": text}, timeout=5)
-    except:
-        pass
+HEADERS = {
+    "apikey": SUPABASE_KEY,
+    "Authorization": f"Bearer {SUPABASE_KEY}",
+    "Content-Type": "application/json"
+}
 
-# Диагностика
-send_telegram("🚀 Бот запускается, проверяем подключение к Supabase...")
-
-# Проверка интернета
-try:
-    socket.create_connection(("google.com", 80), timeout=5)
-    send_telegram("✅ Интернет есть")
-except Exception as e:
-    send_telegram(f"❌ Нет интернета: {e}")
-
-SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
-SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip()
-
-send_telegram(f"🔗 SUPABASE_URL: {SUPABASE_URL}")
-send_telegram(f"🔑 SUPABASE_KEY получен: {'да' if SUPABASE_KEY else 'нет'}")
-
-if not SUPABASE_URL or not SUPABASE_KEY:
-    send_telegram("❌ Ошибка: нет SUPABASE_URL или SUPABASE_KEY")
-    raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY")
-
-try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    send_telegram("✅ Supabase клиент создан успешно")
-except Exception as e:
-    send_telegram(f"❌ Ошибка Supabase: {e}")
-    raise e
+def supabase_request(method, table, data=None, params=None):
+    url = f"{SUPABASE_URL}/rest/v1/{table}"
+    if method == "GET":
+        response = requests.get(url, headers=HEADERS, params=params)
+    elif method == "POST":
+        response = requests.post(url, headers=HEADERS, json=data)
+    elif method == "PATCH":
+        response = requests.patch(url, headers=HEADERS, json=data, params=params)
+    elif method == "DELETE":
+        response = requests.delete(url, headers=HEADERS, params=params)
+    else:
+        return None
+    
+    if response.status_code >= 400:
+        print(f"Supabase error: {response.status_code} - {response.text}")
+        return None
+    return response.json()
 
 def generate_unique_number():
-    response = supabase.table("orders").select("unique_doc_number").order("id", desc=True).limit(1).execute()
-    if response.data and response.data[0]["unique_doc_number"]:
-        last_num = int(response.data[0]["unique_doc_number"][1:])
+    response = supabase_request("GET", "orders", params={"select": "unique_doc_number", "order": "id.desc", "limit": 1})
+    if response and response[0].get("unique_doc_number"):
+        last_num = int(response[0]["unique_doc_number"][1:])
         new_num = last_num + 1
     else:
         new_num = 73
@@ -59,68 +47,59 @@ def generate_doc_hash(data_snapshot):
     return hashlib.sha256(hash_input).hexdigest()[:16].upper()
 
 def add_user(user_id, referral_link):
-    supabase.table("users").upsert({"user_id": user_id, "referral_link": referral_link}).execute()
+    supabase_request("POST", "users", {"user_id": user_id, "referral_link": referral_link})
 
 def get_user(user_id):
-    response = supabase.table("users").select("*").eq("user_id", user_id).execute()
-    return response.data[0] if response.data else None
+    response = supabase_request("GET", "users", params={"user_id": f"eq.{user_id}"})
+    return response[0] if response else None
 
 def update_user_balance(user_id, amount):
     user = get_user(user_id)
     if user:
         new_balance = user["balance"] + amount
         new_total = user["total_earned"] + amount
-        supabase.table("users").update({
-            "balance": new_balance,
-            "total_earned": new_total,
-            "referrals_count": user.get("referrals_count", 0),
-            "paid_referrals": user.get("paid_referrals", 0)
-        }).eq("user_id", user_id).execute()
+        supabase_request("PATCH", "users", {"balance": new_balance, "total_earned": new_total}, params={"user_id": f"eq.{user_id}"})
 
 def add_order(order_data):
-    try:
-        response = supabase.table("orders").insert({
-            "user_id": order_data[0],
-            "unique_doc_number": order_data[1],
-            "doc_hash": order_data[2],
-            "series": order_data[3],
-            "issue_date": order_data[4],
-            "entry_number": order_data[5],
-            "vehicle_type_vision": order_data[6],
-            "brand": order_data[7],
-            "model": order_data[8],
-            "year": order_data[9],
-            "frame_number": order_data[10],
-            "engine_number": order_data[11],
-            "vehicle_type_static": order_data[12],
-            "engine_capacity": order_data[13],
-            "strokes": order_data[14],
-            "cooling": order_data[15],
-            "transmission": order_data[16],
-            "fuel_system": order_data[17],
-            "front_brake": order_data[18],
-            "rear_brake": order_data[19],
-            "weight": order_data[20],
-            "full_name": order_data[21],
-            "passport": order_data[22],
-            "address": order_data[23],
-        }).execute()
-        return response.data[0]["id"] if response.data else None
-    except Exception as e:
-        send_telegram(f"❌ Ошибка add_order: {e}")
-        return None
+    response = supabase_request("POST", "orders", {
+        "user_id": order_data[0],
+        "unique_doc_number": order_data[1],
+        "doc_hash": order_data[2],
+        "series": order_data[3],
+        "issue_date": order_data[4],
+        "entry_number": order_data[5],
+        "vehicle_type_vision": order_data[6],
+        "brand": order_data[7],
+        "model": order_data[8],
+        "year": order_data[9],
+        "frame_number": order_data[10],
+        "engine_number": order_data[11],
+        "vehicle_type_static": order_data[12],
+        "engine_capacity": order_data[13],
+        "strokes": order_data[14],
+        "cooling": order_data[15],
+        "transmission": order_data[16],
+        "fuel_system": order_data[17],
+        "front_brake": order_data[18],
+        "rear_brake": order_data[19],
+        "weight": order_data[20],
+        "full_name": order_data[21],
+        "passport": order_data[22],
+        "address": order_data[23],
+    })
+    return response[0]["id"] if response else None
 
 def get_order(order_id):
-    response = supabase.table("orders").select("*").eq("id", order_id).execute()
-    return response.data[0] if response.data else None
+    response = supabase_request("GET", "orders", params={"id": f"eq.{order_id}"})
+    return response[0] if response else None
 
 def get_order_by_entry_number(entry_number):
-    response = supabase.table("orders").select("*").eq("entry_number", entry_number).execute()
-    return response.data[0] if response.data else None
+    response = supabase_request("GET", "orders", params={"entry_number": f"eq.{entry_number}"})
+    return response[0] if response else None
 
 def update_order_status(order_id, status):
-    supabase.table("orders").update({"status": status}).eq("id", order_id).execute()
+    supabase_request("PATCH", "orders", {"status": status}, params={"id": f"eq.{order_id}"})
 
 def get_pending_orders():
-    response = supabase.table("orders").select("*").eq("status", "waiting_confirm").execute()
-    return response.data
+    response = supabase_request("GET", "orders", params={"status": "eq.waiting_confirm"})
+    return response if response else []
