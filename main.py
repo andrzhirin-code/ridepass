@@ -2,6 +2,8 @@ import asyncio
 import os
 import logging
 import uuid
+import random
+import string
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -19,7 +21,8 @@ from aiohttp import web
 from database import (
     add_user, add_order, get_order, update_order_status,
     get_pending_orders, get_user, update_user_balance,
-    generate_unique_number, generate_doc_hash, get_order_by_entry_number
+    generate_unique_number, generate_doc_hash, get_order_by_entry_number,
+    generate_series_code
 )
 from image_filler import fill_order_template
 
@@ -291,20 +294,22 @@ async def process_phone(message: types.Message, state: FSMContext):
         data = await state.get_data()
         
         try:
-            unique_number = await generate_unique_number()
+            # Генерация номеров
+            passport_number = await generate_unique_number()  # 00073
+            series_code = generate_series_code()              # 2026-AB12
+            entry_number = f"DP-{passport_number}"            # DP-00073
             today = datetime.now().strftime("%d.%m.%Y")
-            entry_number = f"DP-{unique_number[1:]}"
             
             data_snapshot = f"{data.get('brand')}{data.get('model')}{data.get('frame_number')}{data.get('engine_number')}{today}{uuid.uuid4()}"
             doc_hash = generate_doc_hash(data_snapshot)
             
             order_id = await add_order((
                 message.from_user.id,
-                unique_number,
-                doc_hash,
-                "DP",
-                today,
-                entry_number,
+                passport_number,                # unique_doc_number
+                doc_hash,                       # doc_hash
+                series_code,                    # series (Серия DP)
+                today,                          # issue_date
+                entry_number,                   # entry_number (№ записи)
                 data.get('vehicle_type_vision'),
                 data.get('brand'),
                 data.get('model'),
@@ -363,7 +368,8 @@ async def i_paid(message: types.Message):
         order_id = order["id"]
         text = (
             f"🔔 НОВАЯ ЗАЯВКА #{order_id}\n\n"
-            f"📌 № паспорта: {order['unique_doc_number']}\n"
+            f"📌 № паспорта: №{order['unique_doc_number']}\n"
+            f"📌 Серия: {order['series']}\n"
             f"📌 № записи: {order['entry_number']}\n"
             f"🏍 Вид техники: {order['vehicle_type_vision']}\n"
             f"🏭 Марка: {order['brand']}\n"
@@ -414,10 +420,10 @@ async def handle_admin(callback: CallbackQuery):
                 return str(val) if val is not None else ""
             
             order_data = {
-                "record_number": get_clean(order["unique_doc_number"]),
-                "series": get_clean(order["series"]),
+                "passport_number": get_clean(order["unique_doc_number"]),  # №00073
+                "series_code": get_clean(order["series"]),                 # 2026-AB12
+                "entry_number": get_clean(order["entry_number"]),          # DP-00073
                 "issue_date": get_clean(order["issue_date"]),
-                "entry_number": get_clean(order["entry_number"]),
                 "vehicle_type_vision": get_clean(order["vehicle_type_vision"]),
                 "brand": get_clean(order["brand"]),
                 "model": get_clean(order["model"]),
@@ -452,7 +458,7 @@ async def handle_admin(callback: CallbackQuery):
             
     elif action == "reject":
         await update_order_status(order_id, "rejected")
-        await bot.send_message(order["user_id"], "❌ Платёж не подтверждён. Свяжитесь с поддержкой.")
+        await bot.send_message(order["user_id"], "❌ Платёж не подтвержден. Свяжитесь с поддержкой.")
         await callback.message.edit_text(f"❌ Заявка #{order_id} отклонена.")
 
 # ========== РЕФЕРАЛКА ==========
@@ -563,7 +569,7 @@ async def main():
         return web.json_response({
             "status": "valid",
             "document": {
-                "record_number": order["unique_doc_number"],
+                "record_number": f"№{order['unique_doc_number']}",
                 "owner": order["full_name"],
                 "brand": order["brand"],
                 "model": order["model"],
