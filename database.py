@@ -33,18 +33,11 @@ async def get_db_connection():
     return await asyncpg.connect(DATABASE_URL)
 
 def generate_series_code():
-    """Генерирует серию DP в формате: ГГГГ-XXXX (например, 2026-AB12)"""
     year = "2026"
     suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
     return f"{year}-{suffix}"
 
-
-# ==========================================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
-# ==========================================
-
 async def generate_unique_number() -> str:
-    """Генерирует сквозной номер паспорта мототехники (00073, 00074...)"""
     send_telegram("🔄 generate_unique_number вызван")
     conn = None
     try:
@@ -76,11 +69,6 @@ def generate_doc_hash(data_snapshot: Any) -> str:
     unique_id = str(uuid.uuid4())
     hash_input = f"{data_snapshot}{secret_salt}{unique_id}".encode()
     return hashlib.sha256(hash_input).hexdigest()[:16].upper()
-
-
-# ==========================================
-# ПОЛЬЗОВАТЕЛИ
-# ==========================================
 
 async def add_user(user_id: Union[int, str], referral_link: str) -> None:
     send_telegram(f"🔄 add_user: {user_id}")
@@ -137,11 +125,6 @@ async def update_user_balance(user_id: Union[int, str], amount: float) -> None:
     finally:
         if conn:
             await conn.close()
-
-
-# ==========================================
-# ЗАКАЗЫ
-# ==========================================
 
 async def add_order(order_data: tuple) -> Optional[int]:
     send_telegram(f"🔄 add_order: длина кортежа {len(order_data)}")
@@ -231,7 +214,6 @@ async def get_pending_orders() -> List[Dict[str, Any]]:
     conn = None
     try:
         conn = await get_db_connection()
-        # Получаем только заявки со статусом waiting_confirm (не подтверждённые)
         rows = await conn.fetch("SELECT * FROM orders WHERE status = 'waiting_confirm'")
         result = [dict(r) for r in rows] if rows else []
         send_telegram(f"📥 Найдено ожидающих заказов: {len(result)}")
