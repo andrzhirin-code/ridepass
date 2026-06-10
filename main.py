@@ -290,56 +290,64 @@ async def process_phone(message: types.Message, state: FSMContext):
         await state.update_data(phone=message.text)
         data = await state.get_data()
         
-        unique_number = generate_unique_number()
-        today = datetime.now().strftime("%d.%m.%Y")
-        entry_number = f"DP-{unique_number[1:]}"
-        
-        # ДОБАВЛЯЕМ UUID ДЛЯ УНИКАЛЬНОСТИ ХЕША
-        data_snapshot = f"{data.get('brand')}{data.get('model')}{data.get('frame_number')}{data.get('engine_number')}{today}{uuid.uuid4()}"
-        doc_hash = generate_doc_hash(data_snapshot)
-        
-        order_id = add_order((
-            message.from_user.id,
-            unique_number,
-            doc_hash,
-            "DP",
-            today,
-            entry_number,
-            data.get('vehicle_type_vision'),
-            data.get('brand'),
-            data.get('model'),
-            data.get('year'),
-            data.get('frame_number'),
-            data.get('engine_number'),
-            "Спортинвентарь",
-            data.get('engine_capacity'),
-            data.get('strokes'),
-            data.get('cooling'),
-            data.get('transmission'),
-            data.get('fuel_system'),
-            data.get('front_brake'),
-            data.get('rear_brake'),
-            data.get('weight'),
-            data.get('full_name'),
-            data.get('passport'),
-            data.get('address'),
-        ))
-        
-        update_order_status(order_id, "waiting_confirm")
-        
-        await message.answer(
-            "💳 Для оформления заявки оплатите услугу\n\n"
-            "💰 Сумма: 2499 рублей\n"
-            "🏦 Реквизиты для оплаты:\n"
-            "• СБП: +7 916 214-00-01 (Т-Банк)\n"
-            "• Карта: 2200 7006 1478 3958\n\n"
-            "✅ После оплаты нажмите кнопку «Я оплатил»",
-            reply_markup=ReplyKeyboardMarkup(
-                keyboard=[[KeyboardButton(text="Я оплатил")], [KeyboardButton(text="Назад")]],
-                resize_keyboard=True
+        try:
+            unique_number = generate_unique_number()
+            today = datetime.now().strftime("%d.%m.%Y")
+            entry_number = f"DP-{unique_number[1:]}"
+            
+            data_snapshot = f"{data.get('brand')}{data.get('model')}{data.get('frame_number')}{data.get('engine_number')}{today}{uuid.uuid4()}"
+            doc_hash = generate_doc_hash(data_snapshot)
+            
+            order_id = add_order((
+                message.from_user.id,
+                unique_number,
+                doc_hash,
+                "DP",
+                today,
+                entry_number,
+                data.get('vehicle_type_vision'),
+                data.get('brand'),
+                data.get('model'),
+                data.get('year'),
+                data.get('frame_number'),
+                data.get('engine_number'),
+                "Спортинвентарь",
+                data.get('engine_capacity'),
+                data.get('strokes'),
+                data.get('cooling'),
+                data.get('transmission'),
+                data.get('fuel_system'),
+                data.get('front_brake'),
+                data.get('rear_brake'),
+                data.get('weight'),
+                data.get('full_name'),
+                data.get('passport'),
+                data.get('address'),
+            ))
+            
+            if order_id is None:
+                await message.answer("❌ Ошибка при сохранении данных. Попробуйте позже.")
+                return
+            
+            update_order_status(order_id, "waiting_confirm")
+            
+            await message.answer(
+                "💳 Для оформления заявки оплатите услугу\n\n"
+                "💰 Сумма: 2499 рублей\n"
+                "🏦 Реквизиты для оплаты:\n"
+                "• СБП: +7 916 214-00-01 (Т-Банк)\n"
+                "• Карта: 2200 7006 1478 3958\n\n"
+                "✅ После оплаты нажмите кнопку «Я оплатил»",
+                reply_markup=ReplyKeyboardMarkup(
+                    keyboard=[[KeyboardButton(text="Я оплатил")], [KeyboardButton(text="Назад")]],
+                    resize_keyboard=True
+                )
             )
-        )
-        await state.clear()
+            await state.clear()
+            
+        except Exception as e:
+            print(f"Ошибка в process_phone: {e}")
+            await message.answer(f"❌ Ошибка: {str(e)}")
 
 @dp.message(F.text == "Я оплатил")
 async def i_paid(message: types.Message):
