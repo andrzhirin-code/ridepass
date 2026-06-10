@@ -1,6 +1,7 @@
 import asyncio
 import os
 import logging
+import uuid
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -15,7 +16,11 @@ from aiogram.types import (
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
-from database import init_db, add_user, add_order, get_order, update_order_status, get_pending_orders, get_user, update_user_balance, generate_unique_number, generate_doc_hash
+from database import (
+    add_user, add_order, get_order, update_order_status,
+    get_pending_orders, get_user, update_user_balance,
+    generate_unique_number, generate_doc_hash, get_order_by_entry_number
+)
 from image_filler import fill_order_template
 
 API_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
@@ -45,26 +50,26 @@ back_button = ReplyKeyboardMarkup(
     resize_keyboard=True
 )
 
-# ========== FSM (ВСЕ ПОЛЯ) ==========
+# ========== FSM ==========
 class Form(StatesGroup):
-    vehicle_type_vision = State()  # Вид техники
-    brand = State()                # Марка
-    model = State()                # Модель
-    year = State()                 # Год выпуска
-    frame_number = State()         # Номер рамы
-    engine_number = State()        # Номер двигателя
-    engine_capacity = State()      # Объем двигателя
-    strokes = State()              # Количество тактов
-    cooling = State()              # Охлаждение
-    transmission = State()         # Коробка передач
-    fuel_system = State()          # Топливная система
-    front_brake = State()          # Передняя тормозная система
-    rear_brake = State()           # Задняя тормозная система
-    weight = State()               # Масса без нагрузки
-    full_name = State()            # ФИО владельца
-    passport = State()             # Паспорт
-    address = State()              # Адрес
-    phone = State()                # Телефон
+    vehicle_type_vision = State()
+    brand = State()
+    model = State()
+    year = State()
+    frame_number = State()
+    engine_number = State()
+    engine_capacity = State()
+    strokes = State()
+    cooling = State()
+    transmission = State()
+    fuel_system = State()
+    front_brake = State()
+    rear_brake = State()
+    weight = State()
+    full_name = State()
+    passport = State()
+    address = State()
+    phone = State()
 
 # ========== СТАРТ ==========
 @dp.message(Command("start"))
@@ -285,30 +290,28 @@ async def process_phone(message: types.Message, state: FSMContext):
         await state.update_data(phone=message.text)
         data = await state.get_data()
         
-        # Генерируем уникальные номера и хеш
         unique_number = generate_unique_number()
         today = datetime.now().strftime("%d.%m.%Y")
         entry_number = f"DP-{unique_number[1:]}"
         
-        # Создаём слепок данных для хеша
-        data_snapshot = f"{data.get('brand')}{data.get('model')}{data.get('frame_number')}{data.get('engine_number')}{today}"
+        # ДОБАВЛЯЕМ UUID ДЛЯ УНИКАЛЬНОСТИ ХЕША
+        data_snapshot = f"{data.get('brand')}{data.get('model')}{data.get('frame_number')}{data.get('engine_number')}{today}{uuid.uuid4()}"
         doc_hash = generate_doc_hash(data_snapshot)
         
-        # Сохраняем в БД
         order_id = add_order((
             message.from_user.id,
-            unique_number,              # unique_doc_number
-            doc_hash,                   # doc_hash
-            "DP",                       # series
-            today,                      # issue_date
-            entry_number,               # entry_number
+            unique_number,
+            doc_hash,
+            "DP",
+            today,
+            entry_number,
             data.get('vehicle_type_vision'),
             data.get('brand'),
             data.get('model'),
             data.get('year'),
             data.get('frame_number'),
             data.get('engine_number'),
-            "Спортинвентарь",           # vehicle_type_static
+            "Спортинвентарь",
             data.get('engine_capacity'),
             data.get('strokes'),
             data.get('cooling'),
@@ -349,29 +352,28 @@ async def i_paid(message: types.Message):
     pending = get_pending_orders()
     
     for order in pending:
-        order_id = order[0]
+        order_id = order["id"]
         text = (
             f"🔔 НОВАЯ ЗАЯВКА #{order_id}\n\n"
-            f"📌 № паспорта: {order[2]}\n"
-            f"📌 № записи: {order[6]}\n"
-            f"🏍 Вид техники: {order[7]}\n"
-            f"🏭 Марка: {order[8]}\n"
-            f"🔧 Модель: {order[9]}\n"
-            f"📅 Год: {order[10]}\n"
-            f"🔢 Номер рамы: {order[11]}\n"
-            f"🔢 Номер двигателя: {order[12]}\n"
-            f"⚡ Объём: {order[14]}\n"
-            f"🔄 Тактов: {order[15]}\n"
-            f"❄️ Охлаждение: {order[16]}\n"
-            f"⚙️ Коробка: {order[17]}\n"
-            f"⛽ Топливная: {order[18]}\n"
-            f"🛑 Передний тормоз: {order[19]}\n"
-            f"🛑 Задний тормоз: {order[20]}\n"
-            f"⚖️ Масса: {order[21]}\n"
-            f"👤 ФИО: {order[22]}\n"
-            f"🆔 Паспорт: {order[23]}\n"
-            f"🏠 Адрес: {order[24]}\n"
-            f"📱 Телефон: {order[25] if len(order) > 25 else ''}\n"
+            f"📌 № паспорта: {order['unique_doc_number']}\n"
+            f"📌 № записи: {order['entry_number']}\n"
+            f"🏍 Вид техники: {order['vehicle_type_vision']}\n"
+            f"🏭 Марка: {order['brand']}\n"
+            f"🔧 Модель: {order['model']}\n"
+            f"📅 Год: {order['year']}\n"
+            f"🔢 Номер рамы: {order['frame_number']}\n"
+            f"🔢 Номер двигателя: {order['engine_number']}\n"
+            f"⚡ Объём: {order['engine_capacity']}\n"
+            f"🔄 Тактов: {order['strokes']}\n"
+            f"❄️ Охлаждение: {order['cooling']}\n"
+            f"⚙️ Коробка: {order['transmission']}\n"
+            f"⛽ Топливная: {order['fuel_system']}\n"
+            f"🛑 Передний тормоз: {order['front_brake']}\n"
+            f"🛑 Задний тормоз: {order['rear_brake']}\n"
+            f"⚖️ Масса: {order['weight']}\n"
+            f"👤 ФИО: {order['full_name']}\n"
+            f"🆔 Паспорт: {order['passport']}\n"
+            f"🏠 Адрес: {order['address']}\n"
         )
         
         kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -400,39 +402,37 @@ async def handle_admin(callback: CallbackQuery):
     
     if action == "approve":
         try:
-            today = datetime.now().strftime("%d.%m.%Y")
-            
             def get_clean(val):
                 return str(val) if val is not None else ""
             
             order_data = {
-                "record_number": get_clean(order[2]),      # unique_doc_number
-                "series": get_clean(order[4]),            # series
-                "issue_date": get_clean(order[5]),        # issue_date
-                "entry_number": get_clean(order[6]),      # entry_number
-                "vehicle_type_vision": get_clean(order[7]),
-                "brand": get_clean(order[8]),
-                "model": get_clean(order[9]),
-                "year": get_clean(order[10]),
-                "frame_number": get_clean(order[11]),
-                "engine_number": get_clean(order[12]),
-                "engine_capacity": get_clean(order[14]),
-                "strokes": get_clean(order[15]),
-                "cooling": get_clean(order[16]),
-                "transmission": get_clean(order[17]),
-                "fuel_system": get_clean(order[18]),
-                "front_brake": get_clean(order[19]),
-                "rear_brake": get_clean(order[20]),
-                "weight": get_clean(order[21]),
-                "full_name": get_clean(order[22]),
-                "passport": get_clean(order[23]),
-                "address": get_clean(order[24]),
-                "doc_hash": get_clean(order[3]),          # doc_hash
+                "record_number": get_clean(order["unique_doc_number"]),
+                "series": get_clean(order["series"]),
+                "issue_date": get_clean(order["issue_date"]),
+                "entry_number": get_clean(order["entry_number"]),
+                "vehicle_type_vision": get_clean(order["vehicle_type_vision"]),
+                "brand": get_clean(order["brand"]),
+                "model": get_clean(order["model"]),
+                "year": get_clean(order["year"]),
+                "frame_number": get_clean(order["frame_number"]),
+                "engine_number": get_clean(order["engine_number"]),
+                "engine_capacity": get_clean(order["engine_capacity"]),
+                "strokes": get_clean(order["strokes"]),
+                "cooling": get_clean(order["cooling"]),
+                "transmission": get_clean(order["transmission"]),
+                "fuel_system": get_clean(order["fuel_system"]),
+                "front_brake": get_clean(order["front_brake"]),
+                "rear_brake": get_clean(order["rear_brake"]),
+                "weight": get_clean(order["weight"]),
+                "full_name": get_clean(order["full_name"]),
+                "passport": get_clean(order["passport"]),
+                "address": get_clean(order["address"]),
+                "doc_hash": get_clean(order["doc_hash"]),
             }
             
             pdf_path = await asyncio.to_thread(fill_order_template, order_data)
             document = FSInputFile(pdf_path)
-            await bot.send_document(order[1], document, caption="✅ Ваш платеж подтверждён! Паспорт мототехники готов.")
+            await bot.send_document(order["user_id"], document, caption="✅ Ваш платеж подтверждён! Паспорт мототехники готов.")
             
             if os.path.exists(pdf_path):
                 os.remove(pdf_path)
@@ -444,7 +444,7 @@ async def handle_admin(callback: CallbackQuery):
             
     elif action == "reject":
         update_order_status(order_id, "rejected")
-        await bot.send_message(order[1], "❌ Платёж не подтверждён. Свяжитесь с поддержкой.")
+        await bot.send_message(order["user_id"], "❌ Платёж не подтверждён. Свяжитесь с поддержкой.")
         await callback.message.edit_text(f"❌ Заявка #{order_id} отклонена.")
 
 # ========== РЕФЕРАЛКА ==========
@@ -454,12 +454,12 @@ async def referral(message: types.Message):
     if user:
         text = (
             f"💰 Мой кабинет RidePass\n\n"
-            f"Баланс: {user[2]} ₽\n"
-            f"Всего заработано: {user[3]} ₽\n"
-            f"Рефералов: {user[4]}\n"
-            f"Оплаченных заявок рефералов: {user[5]}\n"
+            f"Баланс: {user['balance']} ₽\n"
+            f"Всего заработано: {user['total_earned']} ₽\n"
+            f"Рефералов: {user['referrals_count']}\n"
+            f"Оплаченных заявок рефералов: {user['paid_referrals']}\n"
             f"Текущая ставка: 20%\n\n"
-            f"🔗 Ваша реферальная ссылка:\n{user[1]}\n\n"
+            f"🔗 Ваша реферальная ссылка:\n{user['referral_link']}\n\n"
             f"Отправьте ссылку друзьям. Когда приглашенный пользователь оформит и оплатит документы, вознаграждение автоматически появится в вашем кабинете."
         )
         await message.answer(text, reply_markup=main_menu)
@@ -480,11 +480,95 @@ async def on_startup():
     print(f"Webhook set to {WEBHOOK_URL}")
 
 async def main():
-    init_db()
-    
     app = web.Application()
     
-    # Healthcheck для cron-job.org
+    # HTML-страница для проверки документов
+    async def verification_page(request):
+        return web.Response(
+            content_type="text/html",
+            text="""<!DOCTYPE html>
+<html>
+<head>
+    <title>RidePass - Проверка документа</title>
+    <meta charset="UTF-8">
+    <style>
+        body { font-family: Arial; max-width: 600px; margin: 50px auto; padding: 20px; }
+        input { padding: 10px; width: 70%; font-size: 16px; }
+        button { padding: 10px 20px; font-size: 16px; }
+        .result { margin-top: 20px; padding: 15px; border-radius: 5px; }
+        .valid { background: #d4edda; border: 1px solid #c3e6cb; }
+        .invalid { background: #f8d7da; border: 1px solid #f5c6cb; }
+    </style>
+</head>
+<body>
+    <h2>🔍 Проверка подлинности документа RidePass</h2>
+    <p>Введите номер документа (например: DP-00073)</p>
+    <input type="text" id="code" placeholder="DP-00073">
+    <button onclick="check()">Проверить</button>
+    <div id="result" class="result"></div>
+
+    <script>
+        async function check() {
+            const code = document.getElementById('code').value;
+            const resultDiv = document.getElementById('result');
+            if (!code) {
+                resultDiv.innerHTML = '<div class="invalid">❌ Введите номер документа</div>';
+                return;
+            }
+            try {
+                const response = await fetch(`/api/check?code=${code}`);
+                const data = await response.json();
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <div class="valid">
+                            ✅ <strong>Документ действителен</strong><br><br>
+                            📄 Номер: ${data.document.record_number}<br>
+                            👤 Владелец: ${data.document.owner}<br>
+                            🏍 Марка: ${data.document.brand}<br>
+                            🔧 Модель: ${data.document.model}<br>
+                            📅 Год: ${data.document.year}<br>
+                            🔢 Номер рамы: ${data.document.frame}<br>
+                            🔢 Номер двигателя: ${data.document.engine}<br>
+                            🔒 Хеш: ${data.document.hash}
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<div class="invalid">❌ ${data.detail}</div>`;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = '<div class="invalid">❌ Ошибка проверки</div>';
+            }
+        }
+    </script>
+</body>
+</html>"""
+        )
+    
+    async def api_check(request):
+        code = request.query.get("code")
+        if not code:
+            return web.json_response({"detail": "Не указан номер документа"}, status=400)
+        
+        order = get_order_by_entry_number(code)
+        if not order:
+            return web.json_response({"detail": "Документ не найден или поддельный"}, status=404)
+        
+        return web.json_response({
+            "status": "valid",
+            "document": {
+                "record_number": order["unique_doc_number"],
+                "owner": order["full_name"],
+                "brand": order["brand"],
+                "model": order["model"],
+                "year": order["year"],
+                "frame": order["frame_number"],
+                "engine": order["engine_number"],
+                "hash": order["doc_hash"]
+            }
+        })
+    
+    app.router.add_get("/", verification_page)
+    app.router.add_get("/api/check", api_check)
     app.router.add_get("/ping", lambda request: web.Response(text="OK"))
     
     webhook_requests_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
