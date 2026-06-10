@@ -1,62 +1,66 @@
 import os
 import fitz
+import qrcode
+from io import BytesIO
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 FONT_PATH = os.path.join(BASE_DIR, "ARIAL.TTF")
 
 def fill_order_template(data: dict) -> str:
-    if not os.path.exists(TEMPLATE_PATH):
-        raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
-    if not os.path.exists(FONT_PATH):
-        raise FileNotFoundError(f"Шрифт не найден: {FONT_PATH}")
-
     doc = fitz.open(TEMPLATE_PATH)
     page = doc[0]
+    page.insert_font(fontname="ari", fontfile=FONT_PATH)
 
-    # ИСПРАВЛЕННАЯ КАРТА ПОЛЕЙ (смещение устранено)
-    field_mapping = {
-        "Text3": str(data.get("vehicle_type", "—")),  # 1. Тип ТС
-        "Text4": "СИМ",                               # 2. Категория
-        "Text5": str(data.get("brand", "—")),         # 3. Марка
-        "Text6": str(data.get("model", "—")),         # 4. Модель
-        "Text7": str(data.get("year", "—")),          # 5. Год выпуска
-        "Text10": str(data.get("vin", "—")),          # 6. Идентификационный номер
-        "Text12": str(data.get("power", "—")),        # 7. Мощность двигателя
-        "Text13": str(data.get("max_speed", "—")),    # 8. Максимальная скорость
-        "Text16": str(data.get("full_name", "—")),    # 1. ФИО
-        "Text18": str(data.get("passport", "—")),     # 2. Паспорт
-        "Text19": str(data.get("address", "—")),      # 3. Адрес
+    # Готовим данные для вставки
+    values = {
+        "record_number": data.get("record_number", ""), # № паспорта мототехники
+        "series": data.get("series", ""),               # Серия DP
+        "issue_date": data.get("issue_date", ""),       # Дата формирования
+        "entry_number": data.get("entry_number", ""),   # № записи
+        "vehicle_type_vision": data.get("vehicle_type_vision", ""),
+        "brand": data.get("brand", ""),
+        "model": data.get("model", ""),
+        "year": data.get("year", ""),
+        "frame_number": data.get("frame_number", ""),
+        "engine_number": data.get("engine_number", ""),
+        "vehicle_type": "Спортинвентарь", # Всегда фиксированное значение
+        "engine_capacity": data.get("engine_capacity", ""),
+        "strokes": data.get("strokes", ""),
+        "cooling": data.get("cooling", ""),
+        "transmission": data.get("transmission", ""),
+        "fuel_system": data.get("fuel_system", ""),
+        "front_brake": data.get("front_brake", ""),
+        "rear_brake": data.get("rear_brake", ""),
+        "weight": data.get("weight", ""),
+        "full_name": data.get("full_name", ""),
+        "passport": data.get("passport", ""),
+        "address": data.get("address", ""),
+        "doc_hash": data.get("doc_hash", ""), # Хеш для проверки
     }
 
-    text_queue = []
-    widgets = list(page.widgets())
-
-    for field in widgets:
+    # 1. Заполняем текстовые поля
+    for field in page.widgets():
         name = field.field_name
-        if name in field_mapping:
-            rect = field.rect
-            text_queue.append({
-                "text": field_mapping[name],
-                "point": fitz.Point(rect.x0 + 4, rect.y1 - 5),
-                "is_large": False  # убираем увеличенный шрифт
-            })
+        if name in values and values[name]:
+            field.field_value = str(values[name])
+            field.update()
 
-    for field in widgets:
-        page.delete_widget(field)
+    # 2. Генерируем и вставляем QR-код
+    verification_url = f"https://ridepass.onrender.com/check?code={values['entry_number']}"
+    qr = qrcode.QRCode(box_size=2, border=1)
+    qr.add_data(verification_url)
+    qr.make(fit=True)
+    qr_img = qr.make_image(fill_color="black", back_color="white")
+    
+    # Сохраняем QR-код в память
+    qr_bytes = BytesIO()
+    qr_img.save(qr_bytes, "PNG")
+    qr_bytes.seek(0)
+    
+    # Вставляем QR-код на страницу (координаты X, Y подбери под свой бланк)
+    qr_rect = fitz.Rect(500, 50, 500+50, 50+50) # Пример: верхний правый угол
+    page.insert_image(qr_rect, stream=qr_bytes)
 
-    page.insert_font(fontname="ari", fontfile=FONT_PATH)
-    for item in text_queue:
-        font_size = 14 if item["is_large"] else 11
-        page.insert_text(
-            item["point"],
-            item["text"],
-            fontsize=font_size,
-            fontname="ari",
-            color=(0.12, 0.16, 0.2)
-        )
-
-    output_path = os.path.join(BASE_DIR, f"order_{data.get('id', '1')}.pdf")
-    doc.save(output_path, garbage=3, deflate=True)
+    doc.save(os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf"))
     doc.close()
-    return output_path
