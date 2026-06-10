@@ -1,75 +1,50 @@
 import os
+import socket
 import hashlib
 import uuid
-import aiohttp
-import requests
-from typing import Optional, Union, Any, List
+import asyncio
+from typing import Optional, List, Dict, Any, Union
+from supabase import create_client, Client
+
+# ==========================================
+# ФИКС DNS ДЛЯ RENDER (IPv4 ONLY)
+# ==========================================
+orig_getaddrinfo = socket.getaddrinfo
+
+def ipv4_only_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+    return orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+
+socket.getaddrinfo = ipv4_only_getaddrinfo
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
-ADMIN_ID = 5171781123
-BOT_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise ValueError("SUPABASE_URL или SUPABASE_KEY не установлены!")
 
-def send_telegram(text: str):
-    try:
-        requests.post(
-            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
-            json={"chat_id": ADMIN_ID, "text": text},
-            timeout=5
-        )
-    except:
-        pass
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-BASE_HEADERS = {
-    "apikey": SUPABASE_KEY,
-    "Authorization": f"Bearer {SUPABASE_KEY}",
-    "Content-Type": "application/json",
-}
 
-async def supabase_request(method: str, table: str, data: dict = None, params: dict = None) -> Optional[Union[dict, list]]:
-    connector = aiohttp.TCPConnector(family=aiohttp.resolver.socket.AF_INET)
-    url = f"{SUPABASE_URL}/rest/v1/{table}"
-    
-    headers = BASE_HEADERS.copy()
-    if method in ("POST", "PATCH"):
-        headers["Prefer"] = "return=representation"
-    
-    async with aiohttp.ClientSession(connector=connector, headers=headers) as session:
-        try:
-            if method == "GET":
-                async with session.get(url, params=params) as resp:
-                    res_body = await resp.json()
-                    if resp.status >= 400:
-                        send_telegram(f"🛑 API Error {resp.status}: {res_body}")
-                    return res_body
-            elif method == "POST":
-                async with session.post(url, json=data, params=params) as resp:
-                    res_body = await resp.json()
-                    if resp.status >= 400:
-                        send_telegram(f"🛑 API Error {resp.status}: {res_body}")
-                    return res_body
-            elif method == "PATCH":
-                async with session.patch(url, json=data, params=params) as resp:
-                    res_body = await resp.json()
-                    if resp.status >= 400:
-                        send_telegram(f"🛑 API Error {resp.status}: {res_body}")
-                    return res_body
-        except Exception as e:
-            send_telegram(f"❌ Network Error: {e}")
-            return None
+# ==========================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ==========================================
 
 async def generate_unique_number() -> str:
-    response = await supabase_request("GET", "orders", params={"select": "unique_doc_number", "order": "id.desc", "limit": 1})
-    if response and isinstance(response, list) and response[0].get("unique_doc_number"):
-        try:
-            last_num_str = response[0]["unique_doc_number"].replace("№", "")
+    def _sync_query():
+        return supabase.table("orders").select("unique_doc_number").order("id", desc=True).limit(1).execute()
+        
+    try:
+        response = await asyncio.to_thread(_sync_query)
+        if response.data and len(response.data) > 0:
+            last_num_str = response.data[0].get("unique_doc_number", "").replace("№", "")
             last_num = int(last_num_str)
             new_num = last_num + 1
-        except (ValueError, IndexError):
+        else:
             new_num = 73
-    else:
+    except Exception as e:
+        print(f"Ошибка generate_unique_number: {e}")
         new_num = 73
+        
     return f"№{new_num:05d}"
 
 def generate_doc_hash(data_snapshot: Any) -> str:
@@ -78,23 +53,54 @@ def generate_doc_hash(data_snapshot: Any) -> str:
     hash_input = f"{data_snapshot}{secret_salt}{unique_id}".encode()
     return hashlib.sha256(hash_input).hexdigest()[:16].upper()
 
-async def add_user(user_id: int, referral_link: str) -> None:
-    await supabase_request("POST", "users", {"user_id": user_id, "referral_link": referral_link})
 
-async def get_user(user_id: int) -> Optional[dict]:
-    response = await supabase_request("GET", "users", params={"user_id": f"eq.{user_id}"})
-    return response[0] if response and isinstance(response, list) else None
+# ==========================================
+# ПОЛЬЗОВАТЕЛИ
+# ==========================================
 
-async def update_user_balance(user_id: int, amount: float) -> None:
+async def add_user(user_id: Union[int, str], referral_link: str) -> None:
+    def _sync_query():
+        return supabase.table("users").insert({"user_id": int(user_id), "referral_link": referral_link}).execute()
+        
+    try:
+        await asyncio.to_thread(_sync_query)
+    except Exception as e:
+        print(f"Ошибка add_user: {e}")
+
+async def get_user(user_id: Union[int, str]) -> Optional[Dict[str, Any]]:
+    def _sync_query():
+        return supabase.table("users").select("*").eq("user_id", int(user_id)).execute()
+        
+    try:
+        response = await asyncio.to_thread(_sync_query)
+        return response.data[0] if response.data and len(response.data) > 0 else None
+    except Exception as e:
+        print(f"Ошибка get_user: {e}")
+        return None
+
+async def update_user_balance(user_id: Union[int, str], amount: float) -> None:
     user = await get_user(user_id)
-    if user:
-        new_balance = user.get("balance", 0) + amount
-        new_total = user.get("total_earned", 0) + amount
-        await supabase_request("PATCH", "users", {"balance": new_balance, "total_earned": new_total}, params={"user_id": f"eq.{user_id}"})
+    if not user:
+        print(f"Пользователь {user_id} не найден")
+        return
+
+    new_balance = float(user.get("balance", 0)) + float(amount)
+    new_total = float(user.get("total_earned", 0)) + float(amount)
+    
+    def _sync_query():
+        return supabase.table("users").update({"balance": new_balance, "total_earned": new_total}).eq("user_id", int(user_id)).execute()
+        
+    try:
+        await asyncio.to_thread(_sync_query)
+    except Exception as e:
+        print(f"Ошибка update_user_balance: {e}")
+
+
+# ==========================================
+# ЗАКАЗЫ
+# ==========================================
 
 async def add_order(order_data: tuple) -> Optional[int]:
-    send_telegram(f"📦 add_order: длина кортежа {len(order_data)}")
-    
     try:
         payload = {
             "user_id": order_data[0],
@@ -123,31 +129,60 @@ async def add_order(order_data: tuple) -> Optional[int]:
             "address": order_data[23],
         }
     except IndexError as e:
-        send_telegram(f"❌ IndexError: {e}, длина {len(order_data)}")
+        print(f"Ошибка индексов add_order: {e}, длина {len(order_data)}")
         return None
 
-    response = await supabase_request("POST", "orders", payload)
-    send_telegram(f"📥 Ответ Supabase: {response}")
-    
-    if response and isinstance(response, list) and len(response) > 0:
-        order_id = response[0].get("id")
-        send_telegram(f"✅ Заказ создан! ID: {order_id}")
-        return order_id
-    else:
-        send_telegram(f"❌ Ошибка: {response}")
+    def _sync_query():
+        return supabase.table("orders").insert(payload).execute()
+        
+    try:
+        response = await asyncio.to_thread(_sync_query)
+        if response.data and len(response.data) > 0:
+            print(f"✅ Заказ создан: {response.data[0].get('id')}")
+            return response.data[0].get("id")
+    except Exception as e:
+        print(f"Ошибка add_order: {e}")
+        
+    return None
+
+async def get_order(order_id: Union[int, str]) -> Optional[Dict[str, Any]]:
+    def _sync_query():
+        return supabase.table("orders").select("*").eq("id", int(order_id)).execute()
+        
+    try:
+        response = await asyncio.to_thread(_sync_query)
+        return response.data[0] if response.data and len(response.data) > 0 else None
+    except Exception as e:
+        print(f"Ошибка get_order: {e}")
         return None
 
-async def get_order(order_id: int) -> Optional[dict]:
-    response = await supabase_request("GET", "orders", params={"id": f"eq.{order_id}"})
-    return response[0] if response and isinstance(response, list) else None
+async def get_order_by_entry_number(entry_number: str) -> Optional[Dict[str, Any]]:
+    def _sync_query():
+        return supabase.table("orders").select("*").eq("entry_number", str(entry_number)).execute()
+        
+    try:
+        response = await asyncio.to_thread(_sync_query)
+        return response.data[0] if response.data and len(response.data) > 0 else None
+    except Exception as e:
+        print(f"Ошибка get_order_by_entry_number: {e}")
+        return None
 
-async def get_order_by_entry_number(entry_number: str) -> Optional[dict]:
-    response = await supabase_request("GET", "orders", params={"entry_number": f"eq.{entry_number}"})
-    return response[0] if response and isinstance(response, list) else None
+async def update_order_status(order_id: Union[int, str], status: str) -> None:
+    def _sync_query():
+        return supabase.table("orders").update({"status": str(status)}).eq("id", int(order_id)).execute()
+        
+    try:
+        await asyncio.to_thread(_sync_query)
+    except Exception as e:
+        print(f"Ошибка update_order_status: {e}")
 
-async def update_order_status(order_id: int, status: str) -> None:
-    await supabase_request("PATCH", "orders", {"status": status}, params={"id": f"eq.{order_id}"})
-
-async def get_pending_orders() -> List[dict]:
-    response = await supabase_request("GET", "orders", params={"status": "eq.waiting_confirm"})
-    return response if response and isinstance(response, list) else []
+async def get_pending_orders() -> List[Dict[str, Any]]:
+    def _sync_query():
+        return supabase.table("orders").select("*").eq("status", "waiting_confirm").execute()
+        
+    try:
+        response = await asyncio.to_thread(_sync_query)
+        return response.data if response.data else []
+    except Exception as e:
+        print(f"Ошибка get_pending_orders: {e}")
+        return []
