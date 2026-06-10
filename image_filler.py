@@ -18,14 +18,14 @@ def fill_order_template(data: dict) -> str:
         page.insert_font(fontname="ari", fontfile=FONT_PATH)
         fontname = "ari"
     else:
-        print("⚠️ Шрифт ARIAL.TTF не найден")
         fontname = "helv"
 
+    # Соответствие полей в PDF и данных
     field_mapping = {
-        "record_number": str(data.get("record_number", "")),
-        "series": str(data.get("series", "")),
+        "record_number": f"№{data.get('passport_number', '')}",           # №00073
+        "series": data.get('series_code', ''),                            # 2026-AB12
+        "entry_number": data.get('entry_number', ''),                     # DP-00073
         "issue_date": str(data.get("issue_date", "")),
-        "entry_number": str(data.get("entry_number", "")),
         "vehicle_type_vision": str(data.get("vehicle_type_vision", "")),
         "brand": str(data.get("brand", "")),
         "model": str(data.get("model", "")),
@@ -47,14 +47,16 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
+    # Заполняем поля формы
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
             field.field_value = field_mapping[name]
             field.update()
 
+    # QR-код (ведёт на проверку по entry_number)
     verification_url = f"https://ridepass.onrender.com/check?code={data.get('entry_number', '')}"
-    qr = qrcode.QRCode(box_size=2, border=1)
+    qr = qrcode.QRCode(box_size=10, border=2)
     qr.add_data(verification_url)
     qr.make(fit=True)
     qr_img = qr.make_image(fill_color="black", back_color="white")
@@ -63,8 +65,13 @@ def fill_order_template(data: dict) -> str:
     qr_img.save(qr_bytes, "PNG")
     qr_bytes.seek(0)
     
-    qr_rect = fitz.Rect(500, 50, 560, 110)
+    # QR-код в правый верхний угол
+    qr_rect = fitz.Rect(1550, 50, 1750, 250)
     page.insert_image(qr_rect, stream=qr_bytes)
+
+    # Удаляем интерактивные поля
+    for field in page.widgets():
+        page.delete_widget(field)
 
     output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
     doc.save(output_path)
