@@ -18,9 +18,9 @@ def fill_order_template(data: dict) -> str:
         page.insert_font(fontname="ari", fontfile=FONT_PATH)
         fontname = "ari"
     else:
+        print("⚠️ Шрифт ARIAL.TTF не найден")
         fontname = "helv"
 
-    # Соответствие имён полей в PDF и данных из БД
     field_mapping = {
         "record_number": str(data.get("record_number", "")),
         "series": str(data.get("series", "")),
@@ -47,14 +47,12 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
-    # Заполняем поля формы
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
             field.field_value = field_mapping[name]
             field.update()
 
-    # Генерируем QR-код
     verification_url = f"https://ridepass.onrender.com/check?code={data.get('entry_number', '')}"
     qr = qrcode.QRCode(box_size=2, border=1)
     qr.add_data(verification_url)
@@ -65,7 +63,6 @@ def fill_order_template(data: dict) -> str:
     qr_img.save(qr_bytes, "PNG")
     qr_bytes.seek(0)
     
-    # Вставляем QR-код (координаты подбери под свой бланк)
     qr_rect = fitz.Rect(500, 50, 560, 110)
     page.insert_image(qr_rect, stream=qr_bytes)
 
