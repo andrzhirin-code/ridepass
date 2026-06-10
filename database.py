@@ -197,12 +197,15 @@ async def get_order_by_entry_number(entry_number: str) -> Optional[Dict[str, Any
             await conn.close()
 
 async def update_order_status(order_id: Union[int, str], status: str) -> None:
-    send_telegram(f"🔄 update_order_status: {order_id} -> {status}")
+    send_telegram(f"🔄 update_order_status: ID {order_id} -> {status}")
     conn = None
     try:
         conn = await get_db_connection()
-        await conn.execute("UPDATE orders SET status = $1 WHERE id = $2", str(status), int(order_id))
-        send_telegram(f"✅ update_order_status успешно")
+        await conn.execute(
+            "UPDATE orders SET status = $1 WHERE id = $2",
+            str(status), int(order_id)
+        )
+        send_telegram(f"✅ update_order_status в БД успешно изменен на {status}")
     except Exception as e:
         send_telegram(f"❌ Ошибка update_order_status: {e}")
     finally:
