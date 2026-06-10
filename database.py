@@ -2,10 +2,24 @@ import os
 import hashlib
 import uuid
 import aiohttp
+import requests
 from typing import Optional, Union, Any, List
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+ADMIN_ID = 5171781123
+BOT_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
+
+def send_telegram(text: str):
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            json={"chat_id": ADMIN_ID, "text": text},
+            timeout=5
+        )
+    except:
+        pass
 
 BASE_HEADERS = {
     "apikey": SUPABASE_KEY,
@@ -27,22 +41,22 @@ async def supabase_request(method: str, table: str, data: dict = None, params: d
                 async with session.get(url, params=params) as resp:
                     res_body = await resp.json()
                     if resp.status >= 400:
-                        print(f"🛑 [Supabase API Error] Status {resp.status}: {res_body}")
+                        send_telegram(f"🛑 API Error {resp.status}: {res_body}")
                     return res_body
             elif method == "POST":
                 async with session.post(url, json=data, params=params) as resp:
                     res_body = await resp.json()
                     if resp.status >= 400:
-                        print(f"🛑 [Supabase API Error] Status {resp.status}: {res_body}")
+                        send_telegram(f"🛑 API Error {resp.status}: {res_body}")
                     return res_body
             elif method == "PATCH":
                 async with session.patch(url, json=data, params=params) as resp:
                     res_body = await resp.json()
                     if resp.status >= 400:
-                        print(f"🛑 [Supabase API Error] Status {resp.status}: {res_body}")
+                        send_telegram(f"🛑 API Error {resp.status}: {res_body}")
                     return res_body
         except Exception as e:
-            print(f"❌ [Network/Python Error] Исключение при запросе {method} к {table}: {e}")
+            send_telegram(f"❌ Network Error: {e}")
             return None
 
 async def generate_unique_number() -> str:
@@ -79,7 +93,7 @@ async def update_user_balance(user_id: int, amount: float) -> None:
         await supabase_request("PATCH", "users", {"balance": new_balance, "total_earned": new_total}, params={"user_id": f"eq.{user_id}"})
 
 async def add_order(order_data: tuple) -> Optional[int]:
-    print(f"🔄 DEBUG: Вызов add_order. Получено элементов в кортеже: {len(order_data)}")
+    send_telegram(f"📦 add_order: длина кортежа {len(order_data)}")
     
     try:
         payload = {
@@ -109,18 +123,18 @@ async def add_order(order_data: tuple) -> Optional[int]:
             "address": order_data[23],
         }
     except IndexError as e:
-        print(f"❌ DEBUG: Ошибка индексов кортежа! Передано {len(order_data)} элементов, ожидалось 24. Ошибка: {e}")
+        send_telegram(f"❌ IndexError: {e}, длина {len(order_data)}")
         return None
 
     response = await supabase_request("POST", "orders", payload)
-    print(f"📥 DEBUG: Получен ответ базы данных: {response}")
+    send_telegram(f"📥 Ответ Supabase: {response}")
     
     if response and isinstance(response, list) and len(response) > 0:
         order_id = response[0].get("id")
-        print(f"✅ DEBUG: Заказ успешно создан! ID: {order_id}")
+        send_telegram(f"✅ Заказ создан! ID: {order_id}")
         return order_id
     else:
-        print("❌ DEBUG: Не удалось создать заказ. Ответ пустой или словарь ошибки.")
+        send_telegram(f"❌ Ошибка: {response}")
         return None
 
 async def get_order(order_id: int) -> Optional[dict]:
