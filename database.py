@@ -4,6 +4,8 @@ import uuid
 import asyncio
 import requests
 import asyncpg
+import random
+import string
 from typing import Optional, List, Dict, Any, Union
 
 ADMIN_ID = 5171781123
@@ -32,12 +34,19 @@ send_telegram(f"🔗 DATABASE_URL получена (скрыто)")
 async def get_db_connection():
     return await asyncpg.connect(DATABASE_URL)
 
+def generate_series_code():
+    """Генерирует серию DP в формате: ГГГГ-XXXX (например, 2026-AB12)"""
+    year = "2026"
+    suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=4))
+    return f"{year}-{suffix}"
+
 
 # ==========================================
 # ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 # ==========================================
 
 async def generate_unique_number() -> str:
+    """Генерирует сквозной номер паспорта мототехники (00073, 00074...)"""
     send_telegram("🔄 generate_unique_number вызван")
     conn = None
     try:
@@ -60,7 +69,7 @@ async def generate_unique_number() -> str:
         if conn:
             await conn.close()
         
-    result = f"№{new_num:05d}"
+    result = f"{new_num:05d}"
     send_telegram(f"✅ Сгенерирован номер: {result}")
     return result
 
