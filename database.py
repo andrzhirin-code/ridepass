@@ -1,15 +1,11 @@
 import os
-import socket
 import hashlib
 import uuid
 import asyncio
 import requests
+import asyncpg
 from typing import Optional, List, Dict, Any, Union
-from supabase import create_client, Client
 
-# ==========================================
-# ОТПРАВКА ДИАГНОСТИКИ В TELEGRAM
-# ==========================================
 ADMIN_ID = 5171781123
 BOT_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
 
@@ -23,35 +19,18 @@ def send_telegram(text: str):
     except:
         pass
 
-send_telegram("🚀 Бот запущен. Database.py загружен, DNS патч применён.")
+send_telegram("🚀 Бот запущен. Используем asyncpg + IPv4 Pooler")
 
-# ==========================================
-# ФИКС DNS ДЛЯ RENDER (IPv4 ONLY)
-# ==========================================
-orig_getaddrinfo = socket.getaddrinfo
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-def ipv4_only_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
-    return orig_getaddrinfo(host, port, socket.AF_INET, type, proto, flags)
+if not DATABASE_URL:
+    send_telegram("❌ Ошибка: DATABASE_URL не установлена!")
+    raise ValueError("DATABASE_URL не установлена!")
 
-socket.getaddrinfo = ipv4_only_getaddrinfo
+send_telegram(f"🔗 DATABASE_URL получена (скрыто)")
 
-send_telegram("✅ DNS патч IPv4 применён")
-
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-
-if not SUPABASE_URL or not SUPABASE_KEY:
-    send_telegram("❌ Ошибка: SUPABASE_URL или SUPABASE_KEY не установлены!")
-    raise ValueError("SUPABASE_URL или SUPABASE_KEY не установлены!")
-
-send_telegram(f"🔗 SUPABASE_URL: {SUPABASE_URL}")
-
-try:
-    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    send_telegram("✅ Клиент Supabase создан успешно")
-except Exception as e:
-    send_telegram(f"❌ Ошибка создания клиента Supabase: {e}")
-    raise e
+async def get_db_connection():
+    return await asyncpg.connect(DATABASE_URL)
 
 
 # ==========================================
@@ -60,14 +39,16 @@ except Exception as e:
 
 async def generate_unique_number() -> str:
     send_telegram("🔄 generate_unique_number вызван")
-    def _sync_query():
-        return supabase.table("orders").select("unique_doc_number").order("id", desc=True).limit(1).execute()
-        
+    conn = None
     try:
-        response = await asyncio.to_thread(_sync_query)
-        send_telegram(f"📥 Ответ generate_unique_number: {response.data}")
-        if response.data and len(response.data) > 0 and response.data[0].get("unique_doc_number"):
-            last_num_str = response.data[0].get("unique_doc_number", "").replace("№", "")
+        conn = await get_db_connection()
+        row = await conn.fetchrow(
+            "SELECT unique_doc_number FROM orders ORDER BY id DESC LIMIT 1"
+        )
+        send_telegram(f"📥 Последний номер в БД: {row['unique_doc_number'] if row else 'нет'}")
+        
+        if row and row["unique_doc_number"]:
+            last_num_str = row["unique_doc_number"].replace("№", "")
             last_num = int(last_num_str)
             new_num = last_num + 1
         else:
@@ -75,6 +56,9 @@ async def generate_unique_number() -> str:
     except Exception as e:
         send_telegram(f"❌ Ошибка generate_unique_number: {e}")
         new_num = 73
+    finally:
+        if conn:
+            await conn.close()
         
     result = f"№{new_num:05d}"
     send_telegram(f"✅ Сгенерирован номер: {result}")
@@ -93,28 +77,35 @@ def generate_doc_hash(data_snapshot: Any) -> str:
 
 async def add_user(user_id: Union[int, str], referral_link: str) -> None:
     send_telegram(f"🔄 add_user: {user_id}")
-    def _sync_query():
-        return supabase.table("users").insert({"user_id": int(user_id), "referral_link": referral_link}).execute()
-        
+    conn = None
     try:
-        await asyncio.to_thread(_sync_query)
+        conn = await get_db_connection()
+        await conn.execute(
+            "INSERT INTO users (user_id, referral_link) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING",
+            int(user_id), referral_link
+        )
         send_telegram(f"✅ add_user успешно: {user_id}")
     except Exception as e:
         send_telegram(f"❌ Ошибка add_user: {e}")
+    finally:
+        if conn:
+            await conn.close()
 
 async def get_user(user_id: Union[int, str]) -> Optional[Dict[str, Any]]:
     send_telegram(f"🔄 get_user: {user_id}")
-    def _sync_query():
-        return supabase.table("users").select("*").eq("user_id", int(user_id)).execute()
-        
+    conn = None
     try:
-        response = await asyncio.to_thread(_sync_query)
-        result = response.data[0] if response.data and len(response.data) > 0 else None
-        send_telegram(f"📥 get_user результат: {result is not None}")
+        conn = await get_db_connection()
+        row = await conn.fetchrow("SELECT * FROM users WHERE user_id = $1", int(user_id))
+        result = dict(row) if row else None
+        send_telegram(f"📥 get_user результат: {'найден' if result else 'не найден'}")
         return result
     except Exception as e:
         send_telegram(f"❌ Ошибка get_user: {e}")
         return None
+    finally:
+        if conn:
+            await conn.close()
 
 async def update_user_balance(user_id: Union[int, str], amount: float) -> None:
     send_telegram(f"🔄 update_user_balance: {user_id}, {amount}")
@@ -126,14 +117,19 @@ async def update_user_balance(user_id: Union[int, str], amount: float) -> None:
     new_balance = float(user.get("balance", 0)) + float(amount)
     new_total = float(user.get("total_earned", 0)) + float(amount)
     
-    def _sync_query():
-        return supabase.table("users").update({"balance": new_balance, "total_earned": new_total}).eq("user_id", int(user_id)).execute()
-        
+    conn = None
     try:
-        await asyncio.to_thread(_sync_query)
+        conn = await get_db_connection()
+        await conn.execute(
+            "UPDATE users SET balance = $1, total_earned = $2 WHERE user_id = $3",
+            new_balance, new_total, int(user_id)
+        )
         send_telegram(f"✅ update_user_balance успешно")
     except Exception as e:
         send_telegram(f"❌ Ошибка update_user_balance: {e}")
+    finally:
+        if conn:
+            await conn.close()
 
 
 # ==========================================
@@ -144,103 +140,97 @@ async def add_order(order_data: tuple) -> Optional[int]:
     send_telegram(f"🔄 add_order: длина кортежа {len(order_data)}")
     send_telegram(f"📦 Данные (первые 5): {order_data[:5]}")
     
+    conn = None
     try:
-        payload = {
-            "user_id": order_data[0],
-            "unique_doc_number": order_data[1],
-            "doc_hash": order_data[2],
-            "series": order_data[3],
-            "issue_date": order_data[4],
-            "entry_number": order_data[5],
-            "vehicle_type_vision": order_data[6],
-            "brand": order_data[7],
-            "model": order_data[8],
-            "year": order_data[9],
-            "frame_number": order_data[10],
-            "engine_number": order_data[11],
-            "vehicle_type_static": order_data[12],
-            "engine_capacity": order_data[13],
-            "strokes": order_data[14],
-            "cooling": order_data[15],
-            "transmission": order_data[16],
-            "fuel_system": order_data[17],
-            "front_brake": order_data[18],
-            "rear_brake": order_data[19],
-            "weight": order_data[20],
-            "full_name": order_data[21],
-            "passport": order_data[22],
-            "address": order_data[23],
-        }
-    except IndexError as e:
-        send_telegram(f"❌ IndexError в add_order: {e}, длина {len(order_data)}")
-        return None
-
-    def _sync_query():
-        return supabase.table("orders").insert(payload).execute()
+        conn = await get_db_connection()
         
-    try:
-        response = await asyncio.to_thread(_sync_query)
-        send_telegram(f"📥 Ответ Supabase: {response.data}")
-        if response.data and len(response.data) > 0:
-            order_id = response.data[0].get("id")
+        query = """
+            INSERT INTO orders (
+                user_id, unique_doc_number, doc_hash, series, issue_date, entry_number,
+                vehicle_type_vision, brand, model, year, frame_number, engine_number,
+                vehicle_type_static, engine_capacity, strokes, cooling, transmission,
+                fuel_system, front_brake, rear_brake, weight, full_name, passport, address
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24
+            ) RETURNING id
+        """
+        
+        order_id = await conn.fetchval(query, *order_data)
+        
+        if order_id:
             send_telegram(f"✅ Заказ создан! ID: {order_id}")
             return order_id
         else:
-            send_telegram(f"❌ Пустой ответ от Supabase")
+            send_telegram(f"❌ Ошибка: база не вернула ID")
             return None
+            
+    except IndexError as e:
+        send_telegram(f"❌ IndexError в add_order: {e}, длина {len(order_data)}")
+        return None
     except Exception as e:
         send_telegram(f"❌ Ошибка add_order: {e}")
         return None
+    finally:
+        if conn:
+            await conn.close()
 
 async def get_order(order_id: Union[int, str]) -> Optional[Dict[str, Any]]:
     send_telegram(f"🔄 get_order: {order_id}")
-    def _sync_query():
-        return supabase.table("orders").select("*").eq("id", int(order_id)).execute()
-        
+    conn = None
     try:
-        response = await asyncio.to_thread(_sync_query)
-        result = response.data[0] if response.data and len(response.data) > 0 else None
+        conn = await get_db_connection()
+        row = await conn.fetchrow("SELECT * FROM orders WHERE id = $1", int(order_id))
+        result = dict(row) if row else None
         send_telegram(f"📥 get_order: {'найден' if result else 'не найден'}")
         return result
     except Exception as e:
         send_telegram(f"❌ Ошибка get_order: {e}")
         return None
+    finally:
+        if conn:
+            await conn.close()
 
 async def get_order_by_entry_number(entry_number: str) -> Optional[Dict[str, Any]]:
     send_telegram(f"🔄 get_order_by_entry_number: {entry_number}")
-    def _sync_query():
-        return supabase.table("orders").select("*").eq("entry_number", str(entry_number)).execute()
-        
+    conn = None
     try:
-        response = await asyncio.to_thread(_sync_query)
-        result = response.data[0] if response.data and len(response.data) > 0 else None
+        conn = await get_db_connection()
+        row = await conn.fetchrow("SELECT * FROM orders WHERE entry_number = $1", str(entry_number))
+        result = dict(row) if row else None
         send_telegram(f"📥 get_order_by_entry_number: {'найден' if result else 'не найден'}")
         return result
     except Exception as e:
         send_telegram(f"❌ Ошибка get_order_by_entry_number: {e}")
         return None
+    finally:
+        if conn:
+            await conn.close()
 
 async def update_order_status(order_id: Union[int, str], status: str) -> None:
     send_telegram(f"🔄 update_order_status: {order_id} -> {status}")
-    def _sync_query():
-        return supabase.table("orders").update({"status": str(status)}).eq("id", int(order_id)).execute()
-        
+    conn = None
     try:
-        await asyncio.to_thread(_sync_query)
+        conn = await get_db_connection()
+        await conn.execute("UPDATE orders SET status = $1 WHERE id = $2", str(status), int(order_id))
         send_telegram(f"✅ update_order_status успешно")
     except Exception as e:
         send_telegram(f"❌ Ошибка update_order_status: {e}")
+    finally:
+        if conn:
+            await conn.close()
 
 async def get_pending_orders() -> List[Dict[str, Any]]:
-    send_telegram("🔄 get_pending_orders вызван")
-    def _sync_query():
-        return supabase.table("orders").select("*").eq("status", "waiting_confirm").execute()
-        
+    send_telegram("🔄 get_pending_orders")
+    conn = None
     try:
-        response = await asyncio.to_thread(_sync_query)
-        count = len(response.data) if response.data else 0
-        send_telegram(f"📥 get_pending_orders: найдено {count} заявок")
-        return response.data if response.data else []
+        conn = await get_db_connection()
+        rows = await conn.fetch("SELECT * FROM orders WHERE status = 'waiting_confirm'")
+        result = [dict(r) for r in rows] if rows else []
+        send_telegram(f"📥 Найдено ожидающих заказов: {len(result)}")
+        return result
     except Exception as e:
         send_telegram(f"❌ Ошибка get_pending_orders: {e}")
         return []
+    finally:
+        if conn:
+            await conn.close()
