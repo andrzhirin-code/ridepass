@@ -5,18 +5,24 @@ from io import BytesIO
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
-FONT_PATH = os.path.join(BASE_DIR, "ARIAL.TTF")
+FONT_PATH = os.path.join(BASE_DIR, "ARIAL.TTF") # Нужен для резервного копирования, если шрифт не вшит
 
 def fill_order_template(data: dict) -> str:
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
 
+    # 1. Открываем исходный документ
     doc = fitz.open(TEMPLATE_PATH)
     page = doc[0]
 
-    if os.path.exists(FONT_PATH):
-        page.insert_font(fontname="ari", fontfile=FONT_PATH)
+    # ГРАМОТНОЕ РЕШЕНИЕ ДЛЯ ШРИФТОВ И ЦВЕТА:
+    # Говорим PDF-программе использовать встроенные стили оформления самих полей бланка
+    try:
+        doc.need_appearances(True)
+    except:
+        pass
 
+    # Карта заполнения полей
     field_mapping = {
         "record_number": f"№{data.get('passport_number', '')}",
         "series": data.get('series_code', ''),
@@ -43,15 +49,18 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
+    # Заполняем поля формы, сохраняя оригинальный стиль каждой ячейки
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
             field.field_value = field_mapping[name]
             field.update()
 
-    # QR-код
-    verification_url = f"https://ridepass.onrender.com/check?code={data.get('entry_number', '')}"
-    qr = qrcode.QRCode(box_size=20, border=4)
+    # 2. ГЕНЕРАЦИЯ СИММЕТРИЧНОГО QR-КОДА
+    verification_url = f"https://onrender.com{data.get('entry_number', '')}"
+    
+    # Задаем минимальный внутренний отступ (border=1), чтобы QR-код визуально был крупнее и четче
+    qr = qrcode.QRCode(box_size=15, border=1)
     qr.add_data(verification_url)
     qr.make(fit=True)
     qr_img = qr.make_image(fill_color="black", back_color="white")
@@ -60,18 +69,24 @@ def fill_order_template(data: dict) -> str:
     qr_img.save(qr_bytes, "PNG")
     qr_bytes.seek(0)
     
-    qr_rect = fitz.Rect(1550, 200, 1750, 400)
+    # ИСПРАВЛЕНИЕ: Симметричные координаты относительно левой голограммы.
+    # Размер 200x200 пикселей, Y-высота полностью совпадает с голограммой (200-400)
+    qr_rect = fitz.Rect(1350, 200, 1550, 400)
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    # Растрирование страницы в картинку (300 DPI — текст чёткий)
-    pix = page.get_pixmap(dpi=300)
+    # 3. ПРОФЕССИОНАЛЬНОЕ РАСТРИРОВАНИЕ ДЛЯ ЗАЩИТЫ ОТ КОПИРОВАНИЯ
+    # Повышаем DPI до 400. Текст визуально станет неотличим от векторного, 
+    # границы букв Times New Roman будут идеально четкими, но выделить их будет нельзя.
+    pix = page.get_pixmap(dpi=400)
     doc.close()
 
-    # Создаём новый PDF из картинки
+    # Создаем финальный "чистый" PDF из получившейся картинки высокого разрешения
     image_pdf_bytes = pix.pdf_bytes()
     final_doc = fitz.open("pdf", image_pdf_bytes)
     
     output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
+    
+    # Сохраняем со сжатием, чтобы компенсировать высокий DPI
     final_doc.save(output_path, garbage=4, deflate=True)
     final_doc.close()
     
