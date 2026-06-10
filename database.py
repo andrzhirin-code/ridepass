@@ -3,7 +3,6 @@ import hashlib
 import uuid
 from supabase import create_client, Client
 
-# Получаем переменные окружения
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
