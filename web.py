@@ -17,13 +17,13 @@ def verify_document(code: str):
     return {
         "status": "valid",
         "document": {
-            "record_number": order[2], # unique_doc_number
-            "owner": order[16],        # full_name
-            "brand": order[5],         # brand
-            "model": order[6],         # model
-            "year": order[7],          # year
-            "frame": order[8],         # frame_number
-            "engine": order[9],        # engine_number
-            "hash": order[3]           # doc_hash
+            "record_number": order[2],      # unique_doc_number
+            "owner": order[22],             # full_name
+            "brand": order[9],              # brand
+            "model": order[10],             # model
+            "year": order[11],              # year
+            "frame": order[12],             # frame_number
+            "engine": order[13],            # engine_number
+            "hash": order[3]                # doc_hash
         }
     }
