@@ -2,33 +2,45 @@ import os
 import hashlib
 import uuid
 import socket
+import requests
 from supabase import create_client, Client
 
-# Проверка интернета
-def check_connection():
-    try:
-        socket.create_connection(("google.com", 80), timeout=5)
-        return True
-    except Exception as e:
-        print(f"Connection check failed: {e}")
-        return False
+# Telegram для отправки диагностики
+ADMIN_ID = 5171781123
+BOT_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
 
-print(f"Internet connection: {check_connection()}")
+def send_telegram(text):
+    try:
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        requests.post(url, data={"chat_id": ADMIN_ID, "text": text}, timeout=5)
+    except:
+        pass
+
+# Диагностика
+send_telegram("🚀 Бот запускается, проверяем подключение к Supabase...")
+
+# Проверка интернета
+try:
+    socket.create_connection(("google.com", 80), timeout=5)
+    send_telegram("✅ Интернет есть")
+except Exception as e:
+    send_telegram(f"❌ Нет интернета: {e}")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip()
 SUPABASE_KEY = os.getenv("SUPABASE_KEY", "").strip()
 
-print(f"SUPABASE_URL: {SUPABASE_URL}")
-print(f"SUPABASE_KEY exists: {bool(SUPABASE_KEY)}")
+send_telegram(f"🔗 SUPABASE_URL: {SUPABASE_URL}")
+send_telegram(f"🔑 SUPABASE_KEY получен: {'да' if SUPABASE_KEY else 'нет'}")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
+    send_telegram("❌ Ошибка: нет SUPABASE_URL или SUPABASE_KEY")
     raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY")
 
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
-    print("Supabase client created successfully")
+    send_telegram("✅ Supabase клиент создан успешно")
 except Exception as e:
-    print(f"CRITICAL ERROR: {e}")
+    send_telegram(f"❌ Ошибка Supabase: {e}")
     raise e
 
 def generate_unique_number():
@@ -95,7 +107,7 @@ def add_order(order_data):
         }).execute()
         return response.data[0]["id"] if response.data else None
     except Exception as e:
-        print(f"Ошибка add_order: {e}")
+        send_telegram(f"❌ Ошибка add_order: {e}")
         return None
 
 def get_order(order_id):
