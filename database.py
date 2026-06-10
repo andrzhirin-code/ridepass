@@ -29,8 +29,6 @@ if not DATABASE_URL:
     send_telegram("❌ Ошибка: DATABASE_URL не установлена!")
     raise ValueError("DATABASE_URL не установлена!")
 
-send_telegram(f"🔗 DATABASE_URL получена (скрыто)")
-
 async def get_db_connection():
     return await asyncpg.connect(DATABASE_URL)
 
@@ -233,6 +231,7 @@ async def get_pending_orders() -> List[Dict[str, Any]]:
     conn = None
     try:
         conn = await get_db_connection()
+        # Получаем только заявки со статусом waiting_confirm (не подтверждённые)
         rows = await conn.fetch("SELECT * FROM orders WHERE status = 'waiting_confirm'")
         result = [dict(r) for r in rows] if rows else []
         send_telegram(f"📥 Найдено ожидающих заказов: {len(result)}")
