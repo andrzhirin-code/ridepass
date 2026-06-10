@@ -2,7 +2,7 @@ import os
 import hashlib
 import uuid
 import aiohttp
-from typing import Optional, Union, Dict, Any, List
+from typing import Optional, Union, Any, List
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
@@ -25,21 +25,24 @@ async def supabase_request(method: str, table: str, data: dict = None, params: d
         try:
             if method == "GET":
                 async with session.get(url, params=params) as resp:
-                    if resp.status == 204:
-                        return []
-                    return await resp.json()
+                    res_body = await resp.json()
+                    if resp.status >= 400:
+                        print(f"🛑 [Supabase API Error] Status {resp.status}: {res_body}")
+                    return res_body
             elif method == "POST":
                 async with session.post(url, json=data, params=params) as resp:
-                    if resp.status == 204:
-                        return []
-                    return await resp.json()
+                    res_body = await resp.json()
+                    if resp.status >= 400:
+                        print(f"🛑 [Supabase API Error] Status {resp.status}: {res_body}")
+                    return res_body
             elif method == "PATCH":
                 async with session.patch(url, json=data, params=params) as resp:
-                    if resp.status == 204:
-                        return []
-                    return await resp.json()
+                    res_body = await resp.json()
+                    if resp.status >= 400:
+                        print(f"🛑 [Supabase API Error] Status {resp.status}: {res_body}")
+                    return res_body
         except Exception as e:
-            print(f"Supabase error during {method} to {table}: {e}")
+            print(f"❌ [Network/Python Error] Исключение при запросе {method} к {table}: {e}")
             return None
 
 async def generate_unique_number() -> str:
@@ -61,14 +64,14 @@ def generate_doc_hash(data_snapshot: Any) -> str:
     hash_input = f"{data_snapshot}{secret_salt}{unique_id}".encode()
     return hashlib.sha256(hash_input).hexdigest()[:16].upper()
 
-async def add_user(user_id: Union[int, str], referral_link: str) -> None:
+async def add_user(user_id: int, referral_link: str) -> None:
     await supabase_request("POST", "users", {"user_id": user_id, "referral_link": referral_link})
 
-async def get_user(user_id: Union[int, str]) -> Optional[dict]:
+async def get_user(user_id: int) -> Optional[dict]:
     response = await supabase_request("GET", "users", params={"user_id": f"eq.{user_id}"})
     return response[0] if response and isinstance(response, list) else None
 
-async def update_user_balance(user_id: Union[int, str], amount: float) -> None:
+async def update_user_balance(user_id: int, amount: float) -> None:
     user = await get_user(user_id)
     if user:
         new_balance = user.get("balance", 0) + amount
@@ -76,43 +79,59 @@ async def update_user_balance(user_id: Union[int, str], amount: float) -> None:
         await supabase_request("PATCH", "users", {"balance": new_balance, "total_earned": new_total}, params={"user_id": f"eq.{user_id}"})
 
 async def add_order(order_data: tuple) -> Optional[int]:
-    response = await supabase_request("POST", "orders", {
-        "user_id": order_data[0],
-        "unique_doc_number": order_data[1],
-        "doc_hash": order_data[2],
-        "series": order_data[3],
-        "issue_date": order_data[4],
-        "entry_number": order_data[5],
-        "vehicle_type_vision": order_data[6],
-        "brand": order_data[7],
-        "model": order_data[8],
-        "year": order_data[9],
-        "frame_number": order_data[10],
-        "engine_number": order_data[11],
-        "vehicle_type_static": order_data[12],
-        "engine_capacity": order_data[13],
-        "strokes": order_data[14],
-        "cooling": order_data[15],
-        "transmission": order_data[16],
-        "fuel_system": order_data[17],
-        "front_brake": order_data[18],
-        "rear_brake": order_data[19],
-        "weight": order_data[20],
-        "full_name": order_data[21],
-        "passport": order_data[22],
-        "address": order_data[23],
-    })
-    return response[0]["id"] if response and isinstance(response, list) else None
+    print(f"🔄 DEBUG: Вызов add_order. Получено элементов в кортеже: {len(order_data)}")
+    
+    try:
+        payload = {
+            "user_id": order_data[0],
+            "unique_doc_number": order_data[1],
+            "doc_hash": order_data[2],
+            "series": order_data[3],
+            "issue_date": order_data[4],
+            "entry_number": order_data[5],
+            "vehicle_type_vision": order_data[6],
+            "brand": order_data[7],
+            "model": order_data[8],
+            "year": order_data[9],
+            "frame_number": order_data[10],
+            "engine_number": order_data[11],
+            "vehicle_type_static": order_data[12],
+            "engine_capacity": order_data[13],
+            "strokes": order_data[14],
+            "cooling": order_data[15],
+            "transmission": order_data[16],
+            "fuel_system": order_data[17],
+            "front_brake": order_data[18],
+            "rear_brake": order_data[19],
+            "weight": order_data[20],
+            "full_name": order_data[21],
+            "passport": order_data[22],
+            "address": order_data[23],
+        }
+    except IndexError as e:
+        print(f"❌ DEBUG: Ошибка индексов кортежа! Передано {len(order_data)} элементов, ожидалось 24. Ошибка: {e}")
+        return None
 
-async def get_order(order_id: Union[int, str]) -> Optional[dict]:
+    response = await supabase_request("POST", "orders", payload)
+    print(f"📥 DEBUG: Получен ответ базы данных: {response}")
+    
+    if response and isinstance(response, list) and len(response) > 0:
+        order_id = response[0].get("id")
+        print(f"✅ DEBUG: Заказ успешно создан! ID: {order_id}")
+        return order_id
+    else:
+        print("❌ DEBUG: Не удалось создать заказ. Ответ пустой или словарь ошибки.")
+        return None
+
+async def get_order(order_id: int) -> Optional[dict]:
     response = await supabase_request("GET", "orders", params={"id": f"eq.{order_id}"})
     return response[0] if response and isinstance(response, list) else None
 
-async def get_order_by_entry_number(entry_number: Union[int, str]) -> Optional[dict]:
+async def get_order_by_entry_number(entry_number: str) -> Optional[dict]:
     response = await supabase_request("GET", "orders", params={"entry_number": f"eq.{entry_number}"})
     return response[0] if response and isinstance(response, list) else None
 
-async def update_order_status(order_id: Union[int, str], status: str) -> None:
+async def update_order_status(order_id: int, status: str) -> None:
     await supabase_request("PATCH", "orders", {"status": status}, params={"id": f"eq.{order_id}"})
 
 async def get_pending_orders() -> List[dict]:
