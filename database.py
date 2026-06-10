@@ -1,10 +1,13 @@
 import sqlite3
+import hashlib
+import os
 
 DB_NAME = "ridepass.db"
 
 def init_db():
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
+    # ... (таблица users без изменений) ...
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id INTEGER PRIMARY KEY,
@@ -19,77 +22,54 @@ def init_db():
         CREATE TABLE IF NOT EXISTS orders (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER,
-            vehicle_type TEXT,
+            unique_doc_number TEXT UNIQUE,
+            doc_hash TEXT UNIQUE,
+            -- Все поля из вашей анкеты
+            vehicle_type_vision TEXT,
             brand TEXT,
             model TEXT,
             year TEXT,
-            power TEXT,
-            serial TEXT,
+            frame_number TEXT,
+            engine_number TEXT,
+            vehicle_type_static TEXT,
+            engine_capacity TEXT,
+            strokes TEXT,
+            cooling TEXT,
+            transmission TEXT,
+            fuel_system TEXT,
+            front_brake TEXT,
+            rear_brake TEXT,
+            weight TEXT,
             full_name TEXT,
             passport TEXT,
             address TEXT,
-            phone TEXT,
-            speed TEXT,
-            status TEXT DEFAULT 'waiting_payment',
+            -- Служебные поля
+            status TEXT DEFAULT 'new',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     conn.commit()
     conn.close()
 
-def add_user(user_id, referral_link):
+# Функция для генерации уникального номера (№ паспорта мототехники)
+def generate_unique_number():
     conn = sqlite3.connect(DB_NAME)
     cur = conn.cursor()
-    cur.execute("INSERT OR IGNORE INTO users (user_id, referral_link) VALUES (?, ?)", (user_id, referral_link))
-    conn.commit()
+    # Находим последний использованный номер
+    cur.execute("SELECT unique_doc_number FROM orders WHERE unique_doc_number IS NOT NULL ORDER BY id DESC LIMIT 1")
+    last = cur.fetchone()
     conn.close()
+    
+    if last:
+        # Извлекаем число из формата "№00073" и увеличиваем на 1
+        last_num = int(last[0][1:])  # убираем '№'
+        new_num = last_num + 1
+    else:
+        new_num = 73  # Стартуем с 73, как ты и хотел
+    return f"№{new_num:05d}"  # Форматируем в "№00073"
 
-def get_user(user_id):
-    conn = sqlite3.connect(DB_NAME)
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
-    user = cur.fetchone()
-    conn.close()
-    return user
-
-def update_user_balance(user_id, amount):
-    conn = sqlite3.connect(DB_NAME)
-    cur = conn.cursor()
-    cur.execute("UPDATE users SET balance = balance + ?, total_earned = total_earned + ? WHERE user_id = ?", (amount, amount, user_id))
-    conn.commit()
-    conn.close()
-
-def add_order(order_data):
-    conn = sqlite3.connect(DB_NAME)
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO orders (user_id, vehicle_type, brand, model, year, power, serial, full_name, passport, address, phone, speed)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, order_data)
-    order_id = cur.lastrowid
-    conn.commit()
-    conn.close()
-    return order_id
-
-def get_order(order_id):
-    conn = sqlite3.connect(DB_NAME)
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM orders WHERE id = ?", (order_id,))
-    order = cur.fetchone()
-    conn.close()
-    return order
-
-def update_order_status(order_id, status):
-    conn = sqlite3.connect(DB_NAME)
-    cur = conn.cursor()
-    cur.execute("UPDATE orders SET status = ? WHERE id = ?", (status, order_id))
-    conn.commit()
-    conn.close()
-
-def get_pending_orders():
-    conn = sqlite3.connect(DB_NAME)
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM orders WHERE status = 'waiting_confirm'")
-    orders = cur.fetchall()
-    conn.close()
-    return orders
+# Функция для генерации хеша документа
+def generate_doc_hash(data_snapshot):
+    secret_salt = "MySuperSecretRidePassSalt2024"
+    hash_input = f"{data_snapshot}{secret_salt}".encode()
+    return hashlib.sha256(hash_input).hexdigest()[:16].upper()
