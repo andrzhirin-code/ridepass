@@ -3,11 +3,20 @@ import hashlib
 import uuid
 from supabase import create_client, Client
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+# Временный фикс: вписываем напрямую
+SUPABASE_URL = "https://sjdpobszj1admakjzqw.supabase.co"
+SUPABASE_KEY = "sb_publishable_4kQrfjalJ_1VUqMa_coWqw_vkxSj18R"
+
+# Если переменные окружения есть — используем их (приоритет выше)
+if os.getenv("SUPABASE_URL"):
+    SUPABASE_URL = os.getenv("SUPABASE_URL")
+if os.getenv("SUPABASE_KEY"):
+    SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("Missing SUPABASE_URL or SUPABASE_KEY")
+
+print(f"Connecting to Supabase: {SUPABASE_URL}")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
