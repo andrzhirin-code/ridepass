@@ -1,14 +1,13 @@
 import os
 import fitz
 import qrcode
-import gc
 from io import BytesIO
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 
 def fill_order_template(data: dict) -> str:
-    print(f"📝 fill_order_template: запуск генерации со встроенными стилями PDF")
+    print(f"📝 fill_order_template: запуск безопасной векторной фиксации текста")
     
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
@@ -16,12 +15,6 @@ def fill_order_template(data: dict) -> str:
     # 1. Открываем шаблон формы
     doc = fitz.open(TEMPLATE_PATH)
     page = doc.load_page(0)
-
-    # Заставляем PyMuPDF использовать оригинальные шрифты и цвета из шаблона
-    try:
-        doc.need_appearances(True)
-    except:
-        pass
 
     field_mapping = {
         "record_number": str(data.get('passport_number', '')).replace("№", ""),
@@ -49,23 +42,45 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
-    # Переменные для перехвата координат верхней шапки
+    # Массив для сохранения физических координат текстовых полей на бланке
+    lines_to_draw = []
     top_y0, top_y1 = None, None
 
-    # Заполняем поля формы
+    # Считываем точное расположение каждой интерактивной формы на вашем бланке
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
-            field.field_value = field_mapping[name]
-            field.update()
+            rect = field.rect
+            text_value = field_mapping[name]
+            
+            # Вычисляем базовую линию текста строго по нижней границе поля ввода
+            point = fitz.Point(rect.x0 + 2, rect.y1 - (rect.height * 0.18))
+            
+            # Автоматически считываем высоту строки
+            font_size = rect.height * 0.75
+            
+            lines_to_draw.append((point, text_value, font_size))
             
             if name in ("record_number", "series"):
-                top_y0 = field.rect.y0
-                top_y1 = field.rect.y1
+                top_y0 = rect.y0
+                top_y1 = rect.y1
 
-    # 2. АВТОМАТИЧЕСКИЙ РАСЧЕТ ИДЕАЛЬНОЙ СИММЕТРИИ QR-КОДА
+    # 2. ОЧИСТКА СЛОЯ ФОРМ (Стираем синие интерактивные рамки)
+    for field in page.widgets():
+        page.delete_widget(field)
+
+    # 3. ВЖИВЛЕНИЕ ТЕКСТА КАК ГРАФИЧЕСКИХ КОНТУРОВ (Нельзя выделить)
+    for point, text_value, font_size in lines_to_draw:
+        page.insert_text(
+            point, 
+            text_value, 
+            fontname="helv-bold",  # Встроенный шрифт Helvetica-Bold
+            fontsize=font_size, 
+            color=(0, 0, 0)
+        )
+
+    # 4. ИДЕАЛЬНОЕ ВЫРАВНИВАНИЕ QR-КОДА
     w = float(page.rect.x1)
-    
     y0 = top_y0 if top_y0 is not None else page.rect.y1 * 0.078
     y1 = top_y1 if top_y1 is not None else page.rect.y1 * 0.135
     qr_size = y1 - y0
@@ -86,26 +101,10 @@ def fill_order_template(data: dict) -> str:
     
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    # 3. ЭКОНОМНОЕ РАСТРИРОВАНИЕ ДЛЯ ЗАЩИТЫ ОТ КОПИРОВАНИЯ
-    pix = page.get_pixmap(dpi=140)
-    
-    # ИСПРАВЛЕНИЕ: правильный метод для получения PDF байт из Pixmap
-    image_pdf_bytes = pix.tobytes("pdf")
-    
-    doc.scrub(attached_files=True, clean_pages=True, embedded_images=True)
-    doc.close()
-
-    # Сохраняем финальный защищенный PDF файл
-    final_doc = fitz.open("pdf", image_pdf_bytes)
+    # 5. Сохраняем сверхлегкий векторный файл
     output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
-    final_doc.save(output_path, garbage=4, deflate=True)
-    final_doc.close()
+    doc.save(output_path, garbage=4, deflate=True)
+    doc.close()
     
-    # Полная очистка памяти под бесплатный Render
-    del pix
-    del image_pdf_bytes
-    del final_doc
-    gc.collect()
-    
-    print(f"✅ Идеальный защищенный ПТС со всеми вашими шрифтами сохранен: {output_path}")
+    print(f"✅ Документ успешно сгенерирован в векторном режиме: {output_path}")
     return output_path
