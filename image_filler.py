@@ -8,7 +8,7 @@ TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 FONT_PATH = os.path.join(BASE_DIR, "timesbd.ttf")
 
 def fill_order_template(data: dict) -> str:
-    print(f"📝 fill_order_template: запуск генерации ПТС")
+    print(f"📝 fill_order_template: запуск нативного векторного сплющивания бланка")
     
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
@@ -71,6 +71,7 @@ def fill_order_template(data: dict) -> str:
 
     qr_rect = fitz.Rect(w - qr_size - (w * 0.05), y0, w - (w * 0.05), y1)
 
+    # ИСПРАВЛЕНИЕ: правильная ссылка
     verification_url = f"https://ridepass.onrender.com/check?code={data.get('entry_number', '')}"
     
     qr = qrcode.QRCode(box_size=15, border=1)
@@ -84,14 +85,16 @@ def fill_order_template(data: dict) -> str:
     
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    # 3. Удаляем интерактивные поля (делаем текст невыделяемым)
-    for field in page.widgets():
-        page.delete_widget(field)
+    # 3. ОФИЦИАЛЬНОЕ СПЛЮЩИВАНИЕ ФОРМ ПО ДОКУМЕНТАЦИИ PyMuPDF
+    try:
+        page.flatten_widgets(flatten=1)
+    except AttributeError:
+        page.flatten_widgets()
 
-    # 4. Сохраняем документ
+    # Сохраняем финальный защищенный файл
     output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
     doc.save(output_path, garbage=4, deflate=True)
     doc.close()
     
-    print(f"✅ ПТС успешно сохранен: {output_path}")
+    print(f"✅ Плоский ПТС со шрифтами бланка успешно сохранен и защищен: {output_path}")
     return output_path
