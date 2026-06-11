@@ -354,7 +354,7 @@ async def process_phone(message: types.Message, state: FSMContext):
             print(f"Ошибка в process_phone: {e}")
             await message.answer(f"❌ Ошибка: {str(e)}")
 
-# ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ I_PAID ==========
+# ========== I_PAID (ОСТАВЛЕН БЕЗ ИЗМЕНЕНИЙ) ==========
 @dp.message(F.text == "Я оплатил")
 async def i_paid(message: types.Message):
     await message.answer(
@@ -363,25 +363,10 @@ async def i_paid(message: types.Message):
         reply_markup=main_menu
     )
     
-    # Получаем ТОЛЬКО последнюю заявку этого пользователя
-    import asyncpg
-    from database import get_db_connection
+    pending = await get_pending_orders()
     
-    conn = None
-    try:
-        conn = await get_db_connection()
-        row = await conn.fetchrow(
-            "SELECT * FROM orders WHERE user_id = $1 AND status = 'waiting_confirm' ORDER BY id DESC LIMIT 1",
-            message.from_user.id
-        )
-        
-        if not row:
-            await bot.send_message(ADMIN_ID, f"⚠️ Пользователь @{message.from_user.username} нажал «Я оплатил», но заказ не найден")
-            return
-            
-        order = dict(row)
+    for order in pending:
         order_id = order["id"]
-        
         text = (
             f"🔔 НОВАЯ ЗАЯВКА #{order_id}\n\n"
             f"📌 № паспорта: №{order['unique_doc_number']}\n"
@@ -412,14 +397,8 @@ async def i_paid(message: types.Message):
         ])
         
         await bot.send_message(ADMIN_ID, text, reply_markup=kb)
-        
-    except Exception as e:
-        await bot.send_message(ADMIN_ID, f"❌ Ошибка при обработке оплаты: {e}")
-    finally:
-        if conn:
-            await conn.close()
 
-# ========== ИСПРАВЛЕННЫЙ ОБРАБОТЧИК КНОПОК ==========
+# ========== ОБРАБОТЧИК КНОПОК (ИСПРАВЛЕН) ==========
 @dp.callback_query()
 async def handle_admin(callback: CallbackQuery):
     await callback.answer()
@@ -438,6 +417,9 @@ async def handle_admin(callback: CallbackQuery):
     
     if action == "approve":
         try:
+            # Логирование для отладки
+            print(f"📝 Начинаем генерацию PDF для заказа #{order_id}")
+            
             def get_clean(val):
                 return str(val) if val is not None else ""
             
@@ -466,16 +448,24 @@ async def handle_admin(callback: CallbackQuery):
                 "doc_hash": get_clean(order["doc_hash"]),
             }
             
+            print(f"📦 Данные для PDF: {order_data}")
+            
             pdf_path = await asyncio.to_thread(fill_order_template, order_data)
+            print(f"✅ PDF сгенерирован: {pdf_path}")
+            
             document = FSInputFile(pdf_path)
             await bot.send_document(order["user_id"], document, caption="✅ Ваш платеж подтверждён! Паспорт мототехники готов.")
+            print(f"✅ Документ отправлен пользователю {order['user_id']}")
             
             if os.path.exists(pdf_path):
                 os.remove(pdf_path)
+                print(f"✅ Временный файл удалён")
             
             await callback.message.edit_text(f"✅ Заявка #{order_id} подтверждена. Документ отправлен.")
             
         except Exception as e:
+            print(f"❌ ОШИБКА генерации PDF: {e}")
+            await bot.send_message(ADMIN_ID, f"❌ Ошибка при генерации PDF: {e}")
             await callback.message.edit_text(f"❌ Ошибка: {e}")
             
     elif action == "reject":
