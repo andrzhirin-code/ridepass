@@ -3,3 +3,4 @@ pymupdf
 qrcode[pil]
 asyncpg
 requests
+uvicorn==0.24.0
