@@ -295,9 +295,9 @@ async def process_phone(message: types.Message, state: FSMContext):
         
         try:
             # Генерация номеров
-            passport_number = await generate_unique_number()  # 00073
-            series_code = generate_series_code()              # 2026-AB12
-            entry_number = f"DP-{passport_number}"            # DP-00073
+            passport_number = await generate_unique_number()
+            series_code = generate_series_code()
+            entry_number = f"DP-{passport_number}"
             today = datetime.now().strftime("%d.%m.%Y")
             
             data_snapshot = f"{data.get('brand')}{data.get('model')}{data.get('frame_number')}{data.get('engine_number')}{today}{uuid.uuid4()}"
@@ -305,11 +305,11 @@ async def process_phone(message: types.Message, state: FSMContext):
             
             order_id = await add_order((
                 message.from_user.id,
-                passport_number,                # unique_doc_number
-                doc_hash,                       # doc_hash
-                series_code,                    # series (Серия DP)
-                today,                          # issue_date
-                entry_number,                   # entry_number (№ записи)
+                passport_number,
+                doc_hash,
+                series_code,
+                today,
+                entry_number,
                 data.get('vehicle_type_vision'),
                 data.get('brand'),
                 data.get('model'),
@@ -354,6 +354,7 @@ async def process_phone(message: types.Message, state: FSMContext):
             print(f"Ошибка в process_phone: {e}")
             await message.answer(f"❌ Ошибка: {str(e)}")
 
+# ========== ИСПРАВЛЕННАЯ ФУНКЦИЯ I_PAID ==========
 @dp.message(F.text == "Я оплатил")
 async def i_paid(message: types.Message):
     await message.answer(
@@ -362,10 +363,25 @@ async def i_paid(message: types.Message):
         reply_markup=main_menu
     )
     
-    pending = await get_pending_orders()
+    # Получаем ТОЛЬКО последнюю заявку этого пользователя
+    import asyncpg
+    from database import get_db_connection
     
-    for order in pending:
+    conn = None
+    try:
+        conn = await get_db_connection()
+        row = await conn.fetchrow(
+            "SELECT * FROM orders WHERE user_id = $1 AND status = 'waiting_confirm' ORDER BY id DESC LIMIT 1",
+            message.from_user.id
+        )
+        
+        if not row:
+            await bot.send_message(ADMIN_ID, f"⚠️ Пользователь @{message.from_user.username} нажал «Я оплатил», но заказ не найден")
+            return
+            
+        order = dict(row)
         order_id = order["id"]
+        
         text = (
             f"🔔 НОВАЯ ЗАЯВКА #{order_id}\n\n"
             f"📌 № паспорта: №{order['unique_doc_number']}\n"
@@ -396,8 +412,14 @@ async def i_paid(message: types.Message):
         ])
         
         await bot.send_message(ADMIN_ID, text, reply_markup=kb)
+        
+    except Exception as e:
+        await bot.send_message(ADMIN_ID, f"❌ Ошибка при обработке оплаты: {e}")
+    finally:
+        if conn:
+            await conn.close()
 
-# ========== ОБРАБОТЧИК КНОПОК ==========
+# ========== ИСПРАВЛЕННЫЙ ОБРАБОТЧИК КНОПОК ==========
 @dp.callback_query()
 async def handle_admin(callback: CallbackQuery):
     await callback.answer()
@@ -420,9 +442,9 @@ async def handle_admin(callback: CallbackQuery):
                 return str(val) if val is not None else ""
             
             order_data = {
-                "passport_number": get_clean(order["unique_doc_number"]),  # №00073
-                "series_code": get_clean(order["series"]),                 # 2026-AB12
-                "entry_number": get_clean(order["entry_number"]),          # DP-00073
+                "passport_number": get_clean(order["unique_doc_number"]),
+                "series_code": get_clean(order["series"]),
+                "entry_number": get_clean(order["entry_number"]),
                 "issue_date": get_clean(order["issue_date"]),
                 "vehicle_type_vision": get_clean(order["vehicle_type_vision"]),
                 "brand": get_clean(order["brand"]),
