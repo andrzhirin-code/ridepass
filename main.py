@@ -26,6 +26,10 @@ from database import (
 )
 from image_filler import fill_order_template
 
+import traceback
+import sys
+from io import StringIO
+
 API_TOKEN = "8223376010:AAEzIB8EZqZexiOv8bzhhJLyv7fwO2Afte4"
 ADMIN_ID = 5171781123
 
@@ -485,7 +489,6 @@ async def handle_admin(callback: CallbackQuery):
             
             pdf_path = await asyncio.to_thread(fill_order_template, order_data)
             
-            # Меняем статус, чтобы заявка пропала из очереди
             await update_order_status(order_id, "approved")
             
             document = FSInputFile(pdf_path)
@@ -501,6 +504,18 @@ async def handle_admin(callback: CallbackQuery):
             await callback.message.edit_text(f"✅ Заявка #{order_id} подтверждена. Документ отправлен.")
             
         except Exception as e:
+            # 🔥 СБОР ПОЛНОГО TRACEBACK
+            tb_buffer = StringIO()
+            traceback.print_exc(file=tb_buffer)
+            tb_str = tb_buffer.getvalue()
+            
+            # Отправляем подробную ошибку в чат админа
+            await bot.send_message(
+                ADMIN_ID,
+                f"❌ ПОДРОБНАЯ ОШИБКА:\n\n{tb_str}"
+            )
+            
+            # Короткое сообщение в callback
             await callback.message.edit_text(f"❌ Критическая ошибка: {e}")
             
     elif action == "reject":
