@@ -41,11 +41,16 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
+    # Заполняем поля и сразу применяем нужный шрифт
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
             field.field_value = field_mapping[name]
+            field.text_font = "Times-Bold"  # Times New Roman (полужирный)
             field.update()
+
+    # Впаиваем данные (Flatten / Bake) — текст становится невыделяемым
+    page.wrap_contents()
 
     # QR-код
     w = float(page.rect.x1)
