@@ -5,25 +5,22 @@ from io import BytesIO
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
-
-# Ссылка на функцию отправки в Telegram (из database.py)
-from database import send_telegram
+FONT_PATH = os.path.join(BASE_DIR, "timesbd.ttf")
 
 def fill_order_template(data: dict) -> str:
     print("📝 fill_order_template: старт")
     
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
+    if not os.path.exists(FONT_PATH):
+        raise FileNotFoundError(f"⚠️ Файл шрифта timesbd.ttf не найден! Загрузите его в папку проекта.")
 
     doc = fitz.open(TEMPLATE_PATH)
     page = doc.load_page(0)
 
-    # 🔥 ВЫВОДИМ СПИСОК ШРИФТОВ ЧЕРЕЗ GET_PAGE_FONTS (работает на всех версиях)
-    fonts = []
-    for font in doc.get_page_fonts(0):
-        fonts.append(font[3])  # 3-й элемент — это имя шрифта
-    fonts = list(set(fonts))  # убираем дубликаты
-    send_telegram(f"🖋 Шрифты на странице:\n{fonts}")
+    # 1. РЕГИСТРИРУЕМ ВНЕШНИЙ ШРИФТ
+    font_name = "TimesNewRomanBold"
+    page.insert_font(fontname=font_name, fontfile=FONT_PATH)
 
     field_mapping = {
         "record_number": str(data.get('passport_number', '')).replace("№", ""),
@@ -51,13 +48,33 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
-    # Заполняем поля, сохраняя встроенные настройки бланка
+    # 2. ЧИТАЕМ КООРДИНАТЫ ПОЛЕЙ И РИСУЕМ ТЕКСТ
+    widgets_to_remove = []
+    
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
-            field.field_value = field_mapping[name]
-            field.text_font = "TiBo"
-            field.update()
+            text_to_print = field_mapping[name]
+            rect = field.rect
+            
+            # Автоматический размер шрифта
+            font_size = rect.height * 0.75
+            
+            point = fitz.Point(rect.x0 + 2, rect.y1 - 3)
+            
+            page.insert_text(
+                point, 
+                text_to_print, 
+                fontname=font_name, 
+                fontsize=font_size,
+                color=(0, 0, 0)
+            )
+            
+            widgets_to_remove.append(field)
+    
+    # Удаляем интерактивные поля
+    for field in widgets_to_remove:
+        page.delete_widget(field)
 
     # QR-код
     w = float(page.rect.x1)
@@ -75,13 +92,7 @@ def fill_order_template(data: dict) -> str:
     
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    # 1. ЗАСТАВЛЯЕМ PDF-РИДЕР ПРИМЕНИТЬ НАСТРОЙКИ ФОРМЫ И КИРИЛЛИЦУ
-    doc.need_appearances(True)
-
-    # 2. ВПАИВАЕМ ТЕКСТ В СТРАНИЦУ (Убираем интерактивность полей)
-    page.wrap_contents()
-
-    # 3. БЛОКИРУЕМ ВЫДЕЛЕНИЕ И КОПИРОВАНИЕ ТЕКСТА
+    # 3. ЗАЩИТА ОТ ВЫДЕЛЕНИЯ И КОПИРОВАНИЯ
     perm_mask = fitz.PDF_PERM_ACCESSIBILITY 
 
     output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
@@ -95,5 +106,5 @@ def fill_order_template(data: dict) -> str:
     )
     doc.close()
     
-    print(f"✅ Документ заполнен по шаблону и заблокирован: {output_path}")
+    print(f"✅ Документ успешно сгенерирован и аппаратно заблокирован: {output_path}")
     return output_path
