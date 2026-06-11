@@ -8,7 +8,7 @@ TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 FONT_PATH = os.path.join(BASE_DIR, "timesbd.ttf")
 
 def fill_order_template(data: dict) -> str:
-    print(f"📝 fill_order_template: запуск продакшн-генерации ПТС")
+    print(f"📝 fill_order_template: запуск эталонной векторной фиксации ПТС")
     
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
@@ -19,7 +19,7 @@ def fill_order_template(data: dict) -> str:
     doc = fitz.open(TEMPLATE_PATH)
     page = doc.load_page(0)
 
-    # Добавляем ваш Times New Roman Bold в ресурсы документа
+    # Регистрируем ваш Times New Roman Bold в ресурсах документа
     font_name = "TimesNewRoman-Bold"
     page.insert_font(fontname=font_name, fontfile=FONT_PATH)
 
@@ -55,7 +55,6 @@ def fill_order_template(data: dict) -> str:
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
-            # Принудительно связываем загруженный шрифт Times с интерактивным полем
             field.text_font = font_name
             field.field_value = field_mapping[name]
             field.update()
@@ -86,20 +85,20 @@ def fill_order_template(data: dict) -> str:
     
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    # 3. НАТИВНОЕ ВЕКТОРНОЕ СПЛЮЩИВАНИЕ ПО ДОКУМЕНТАЦИИ ADOBE
-    flattened_bytes = doc.write(
+    # 3. ЭТАЛОННОЕ ВЕКТОРНОЕ СПЛЮЩИВАНИЕ ПО ДОКУМЕНТАЦИИ PyMuPDF
+    flattened_bytes = doc.tobytes(
         garbage=4, 
         deflate=True, 
         clean=True, 
-        expand_incremental=False
+        flatten=True
     )
     doc.close()
 
-    # Открываем плоский PDF и сохраняем на диск Render
+    # Открываем получившиеся плоские байты и сохраняем готовый файл
     final_doc = fitz.open("pdf", flattened_bytes)
     output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
     final_doc.save(output_path, garbage=4, deflate=True)
     final_doc.close()
     
-    print(f"✅ Ультра-легкий плоский ПТС со шрифтами успешно сохранен: {output_path}")
+    print(f"✅ Плоский ПТС со шрифтами бланка успешно сохранен и защищен: {output_path}")
     return output_path
