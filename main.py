@@ -354,7 +354,7 @@ async def process_phone(message: types.Message, state: FSMContext):
             print(f"Ошибка в process_phone: {e}")
             await message.answer(f"❌ Ошибка: {str(e)}")
 
-# ========== I_PAID (БЕЗ ИЗМЕНЕНИЙ) ==========
+# ========== ИСПРАВЛЕННЫЙ I_PAID ==========
 @dp.message(F.text == "Я оплатил")
 async def i_paid(message: types.Message):
     await message.answer(
@@ -363,42 +363,52 @@ async def i_paid(message: types.Message):
         reply_markup=main_menu
     )
     
-    pending = await get_pending_orders()
+    # 1. Получаем все ожидающие заказы
+    all_pending = await get_pending_orders()
+    user_id = message.from_user.id
     
-    for order in pending:
-        order_id = order["id"]
-        text = (
-            f"🔔 НОВАЯ ЗАЯВКА #{order_id}\n\n"
-            f"📌 № паспорта: №{order['unique_doc_number']}\n"
-            f"📌 Серия: {order['series']}\n"
-            f"📌 № записи: {order['entry_number']}\n"
-            f"🏍 Вид техники: {order['vehicle_type_vision']}\n"
-            f"🏭 Марка: {order['brand']}\n"
-            f"🔧 Модель: {order['model']}\n"
-            f"📅 Год: {order['year']}\n"
-            f"🔢 Номер рамы: {order['frame_number']}\n"
-            f"🔢 Номер двигателя: {order['engine_number']}\n"
-            f"⚡ Объём: {order['engine_capacity']}\n"
-            f"🔄 Тактов: {order['strokes']}\n"
-            f"❄️ Охлаждение: {order['cooling']}\n"
-            f"⚙️ Коробка: {order['transmission']}\n"
-            f"⛽ Топливная: {order['fuel_system']}\n"
-            f"🛑 Передний тормоз: {order['front_brake']}\n"
-            f"🛑 Задний тормоз: {order['rear_brake']}\n"
-            f"⚖️ Масса: {order['weight']}\n"
-            f"👤 ФИО: {order['full_name']}\n"
-            f"🆔 Паспорт: {order['passport']}\n"
-            f"🏠 Адрес: {order['address']}\n"
-        )
-        
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"approve_{order_id}")],
-            [InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{order_id}")]
-        ])
-        
-        await bot.send_message(ADMIN_ID, text, reply_markup=kb)
+    # 2. Фильтруем заказы строго текущего пользователя
+    user_pending = [order for order in all_pending if order.get("user_id") == user_id]
+    
+    if not user_pending:
+        return
 
-# ========== ОБРАБОТЧИК КНОПОК (ИСПРАВЛЕН ДЛЯ PDF) ==========
+    # 3. Находим самый последний заказ (с максимальным ID)
+    last_order = max(user_pending, key=lambda x: x["id"])
+
+    # 4. Отправляем админу ТОЛЬКО этот один заказ
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"approve_{last_order['id']}"),
+            InlineKeyboardButton(text="❌ Отклонить", callback_data=f"reject_{last_order['id']}")
+        ]
+    ])
+    
+    msg = (
+        f"🔔 НОВАЯ ЗАЯВКА #{last_order['id']}\n\n"
+        f"📌 № паспорта: {last_order.get('unique_doc_number', '')}\n"
+        f"📌 Серия: {last_order.get('series', '')}\n"
+        f"📌 № записи: {last_order.get('entry_number', '')}\n"
+        f"🏍 Вид техники: {last_order.get('vehicle_type_vision', '')}\n"
+        f"🏭 Марка: {last_order.get('brand', '')}\n"
+        f"🔧 Модель: {last_order.get('model', '')}\n"
+        f"📅 Год: {last_order.get('year', '')}\n"
+        f"👤 ФИО: {last_order.get('full_name', '')}\n"
+        f"🆔 Паспорт: {last_order.get('passport', '')}\n"
+        f"🏠 Адрес: {last_order.get('address', '')}\n"
+        f"⚡ Объём: {last_order.get('engine_capacity', '')}\n"
+        f"🔄 Тактов: {last_order.get('strokes', '')}\n"
+        f"❄️ Охлаждение: {last_order.get('cooling', '')}\n"
+        f"⚙️ Коробка: {last_order.get('transmission', '')}\n"
+        f"⛽ Топливная: {last_order.get('fuel_system', '')}\n"
+        f"🛑 Передний тормоз: {last_order.get('front_brake', '')}\n"
+        f"🛑 Задний тормоз: {last_order.get('rear_brake', '')}\n"
+        f"⚖️ Масса: {last_order.get('weight', '')}\n"
+    )
+    
+    await bot.send_message(ADMIN_ID, msg, reply_markup=kb)
+
+# ========== ИСПРАВЛЕННЫЙ HANDLE_ADMIN ==========
 @dp.callback_query()
 async def handle_admin(callback: CallbackQuery):
     await callback.answer()
@@ -416,61 +426,58 @@ async def handle_admin(callback: CallbackQuery):
         return
     
     if action == "approve":
+        await callback.message.edit_text(f"⏳ Заявка #{order_id} одобрена. Генерируем PDF...")
         try:
-            def get_clean(val):
+            # Безопасный сборщик данных
+            def clean(key):
+                val = order.get(key)
                 return str(val) if val is not None else ""
-            
+
             order_data = {
-                "passport_number": get_clean(order["unique_doc_number"]),
-                "series_code": get_clean(order["series"]),
-                "entry_number": get_clean(order["entry_number"]),
-                "issue_date": get_clean(order["issue_date"]),
-                "vehicle_type_vision": get_clean(order["vehicle_type_vision"]),
-                "brand": get_clean(order["brand"]),
-                "model": get_clean(order["model"]),
-                "year": get_clean(order["year"]),
-                "frame_number": get_clean(order["frame_number"]),
-                "engine_number": get_clean(order["engine_number"]),
-                "engine_capacity": get_clean(order["engine_capacity"]),
-                "strokes": get_clean(order["strokes"]),
-                "cooling": get_clean(order["cooling"]),
-                "transmission": get_clean(order["transmission"]),
-                "fuel_system": get_clean(order["fuel_system"]),
-                "front_brake": get_clean(order["front_brake"]),
-                "rear_brake": get_clean(order["rear_brake"]),
-                "weight": get_clean(order["weight"]),
-                "full_name": get_clean(order["full_name"]),
-                "passport": get_clean(order["passport"]),
-                "address": get_clean(order["address"]),
-                "doc_hash": get_clean(order["doc_hash"]),
+                "passport_number": clean("unique_doc_number"),
+                "series_code": clean("series"),
+                "entry_number": clean("entry_number"),
+                "issue_date": clean("issue_date"),
+                "vehicle_type_vision": clean("vehicle_type_vision"),
+                "brand": clean("brand"),
+                "model": clean("model"),
+                "year": clean("year"),
+                "frame_number": clean("frame_number"),
+                "engine_number": clean("engine_number"),
+                "vehicle_type": "Спортинвентарь",
+                "engine_capacity": clean("engine_capacity"),
+                "strokes": clean("strokes"),
+                "cooling": clean("cooling"),
+                "transmission": clean("transmission"),
+                "fuel_system": clean("fuel_system"),
+                "front_brake": clean("front_brake"),
+                "rear_brake": clean("rear_brake"),
+                "weight": clean("weight"),
+                "full_name": clean("full_name"),
+                "passport": clean("passport"),
+                "address": clean("address"),
+                "doc_hash": clean("doc_hash"),
             }
-            
-            # ДОБАВЛЕНО: Логирование перед генерацией PDF
-            print(f"📝 Начинаем генерацию PDF для заказа #{order_id}")
-            print(f"📦 Данные для PDF: {order_data}")
             
             pdf_path = await asyncio.to_thread(fill_order_template, order_data)
             
-            # ДОБАВЛЕНО: Проверка, что файл создан
-            if not os.path.exists(pdf_path):
-                print(f"❌ Файл PDF не создан: {pdf_path}")
-                raise Exception("PDF файл не был создан")
-            
-            print(f"✅ PDF сгенерирован: {pdf_path}")
+            # Меняем статус, чтобы заявка пропала из очереди
+            await update_order_status(order_id, "approved")
             
             document = FSInputFile(pdf_path)
-            await bot.send_document(order["user_id"], document, caption="✅ Ваш платеж подтверждён! Паспорт мототехники готов.")
-            print(f"✅ Документ отправлен пользователю {order['user_id']}")
+            await bot.send_document(
+                order["user_id"], 
+                document, 
+                caption="✅ Ваш платеж подтверждён! Паспорт мототехники готов."
+            )
             
             if os.path.exists(pdf_path):
                 os.remove(pdf_path)
-                print(f"✅ Временный файл удалён")
-            
+                
             await callback.message.edit_text(f"✅ Заявка #{order_id} подтверждена. Документ отправлен.")
             
         except Exception as e:
-            print(f"❌ ОШИБКА генерации PDF: {e}")
-            await callback.message.edit_text(f"❌ Ошибка: {e}")
+            await callback.message.edit_text(f"❌ Критическая ошибка: {e}")
             
     elif action == "reject":
         await update_order_status(order_id, "rejected")
