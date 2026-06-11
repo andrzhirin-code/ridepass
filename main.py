@@ -489,6 +489,18 @@ async def handle_admin(callback: CallbackQuery):
             
             pdf_path = await fill_order_template(order_data)
             
+            # ✅ Проверка существования файла перед отправкой
+            abs_path = os.path.abspath(pdf_path)
+            await bot.send_message(
+                ADMIN_ID, 
+                f"🔍 Абсолютный путь: {abs_path}\n"
+                f"🔍 Файл существует: {os.path.exists(abs_path)}"
+            )
+            
+            if not os.path.exists(abs_path):
+                await callback.message.edit_text(f"❌ Файл не найден на диске: {abs_path}")
+                return
+            
             await update_order_status(order_id, "approved")
             
             document = FSInputFile(pdf_path)
