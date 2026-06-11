@@ -1,6 +1,7 @@
 import os
 import fitz
 import qrcode
+import gc
 from io import BytesIO
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -9,12 +10,13 @@ FONT_PATH = os.path.join(BASE_DIR, "ARIAL.TTF")
 
 def fill_order_template(data: dict) -> str:
     print(f"📝 fill_order_template вызван")
-    print(f"📦 Данные: {data}")
     
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
 
+    # Открываем документ
     doc = fitz.open(TEMPLATE_PATH)
+    # Выбираем первую страницу для рисования и заполнения форм
     page = doc[0]
 
     try:
@@ -51,12 +53,14 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
+    # Заполняем виджеты на странице
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
             field.field_value = field_mapping[name]
             field.update()
 
+    # Генерация QR-кода
     verification_url = f"https://ridepass.onrender.com/check?code={data.get('entry_number', '')}"
     qr = qrcode.QRCode(box_size=20, border=4)
     qr.add_data(verification_url)
@@ -70,17 +74,25 @@ def fill_order_template(data: dict) -> str:
     qr_rect = fitz.Rect(1550, 200, 1750, 400)
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    # ИЗМЕНЕНО: dpi=150 вместо 300 для экономии памяти
-    pix = page.get_pixmap(dpi=150)
-
+    # ⚡ ЖЕСТКАЯ ОПТИМИЗАЦИЯ ПАМЯТИ ПОД БЕСПЛАТНЫЙ RENDER
+    pix = page.get_pixmap(dpi=140)
     image_pdf_bytes = pix.pdf_bytes()
+    
+    # Очищаем внутренний кэш тяжелого документа ПЕРЕД закрытием
+    doc.scrub(attached_files=True, clean_pages=True, embedded_images=True)
     doc.close()
 
+    # Пересобираем плоский файл
     final_doc = fitz.open("pdf", image_pdf_bytes)
-    
     output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
     final_doc.save(output_path, garbage=4, deflate=True)
     final_doc.close()
+    
+    # Полное уничтожение тяжелых объектов из ОЗУ сервера
+    del pix
+    del image_pdf_bytes
+    del doc
+    gc.collect()
     
     print(f"✅ PDF сохранён: {output_path}")
     return output_path
