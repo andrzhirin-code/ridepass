@@ -39,14 +39,15 @@ dp = Dispatcher(storage=storage)
 logging.basicConfig(level=logging.INFO)
 
 # ========== КЛАВИАТУРЫ ==========
-main_menu = ReplyKeyboardMarkup(
-    keyboard=[
-        [KeyboardButton(text="Получить документы")],
-        [KeyboardButton(text="Заработай с нами/реферальная система")],
-        [KeyboardButton(text="Связь с поддержкой")]
-    ],
-    resize_keyboard=True
-)
+def get_main_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="Получить документы")],
+            [KeyboardButton(text="Заработай с нами/реферальная система")],
+            [KeyboardButton(text="Связь с поддержкой")]
+        ],
+        resize_keyboard=True
+    )
 
 back_button = ReplyKeyboardMarkup(
     keyboard=[[KeyboardButton(text="Назад")]],
@@ -101,13 +102,13 @@ async def cmd_start(message: types.Message, state: FSMContext):
         "4️⃣ Нажмите «Я оплатил»\n"
         "5️⃣ Дождитесь подтверждения менеджера\n"
         "6️⃣ Получите готовый PDF-документ прямо в боте",
-        reply_markup=main_menu
+        reply_markup=get_main_keyboard()
     )
 
 @dp.message(F.text == "Назад")
 async def back_to_menu(message: types.Message, state: FSMContext):
     await state.clear()
-    await message.answer("Вы вернулись в главное меню", reply_markup=main_menu)
+    await message.answer("Вы вернулись в главное меню", reply_markup=get_main_keyboard())
 
 @dp.message(F.text == "Получить документы")
 async def get_documents(message: types.Message, state: FSMContext):
@@ -360,23 +361,37 @@ async def i_paid(message: types.Message):
     await message.answer(
         "🙏 Спасибо! Мы отправили администраторам уведомление о платеже.\n\n"
         "⏳ Дождитесь подтверждения.",
-        reply_markup=main_menu
+        reply_markup=get_main_keyboard()
     )
     
     # 1. Получаем все ожидающие заказы
     all_pending = await get_pending_orders()
     user_id = message.from_user.id
     
-    # 2. Фильтруем заказы строго текущего пользователя
-    user_pending = [order for order in all_pending if order.get("user_id") == user_id]
-    
+    # 2. Безопасное сравнение с приведением типов
+    user_pending = []
+    for order in all_pending:
+        db_user_id = order.get("user_id")
+        if db_user_id is not None:
+            try:
+                if str(db_user_id).strip() == str(user_id).strip():
+                    user_pending.append(order)
+            except (ValueError, TypeError):
+                continue
+
+    # Если у этого пользователя нет активных заказов
     if not user_pending:
+        # Отправляем админу техническое уведомление
+        await bot.send_message(
+            ADMIN_ID, 
+            f"⚠️ Пользователь {user_id} нажал «Я оплатил», но в списке waiting_confirm его заявок нет.\n"
+            f"Всего в очереди сейчас заявок: {len(all_pending)}"
+        )
         return
-
-    # 3. Находим самый последний заказ (с максимальным ID)
+        
+    # 3. Берем самую последнюю заявку текущего пользователя
     last_order = max(user_pending, key=lambda x: x["id"])
-
-    # 4. Отправляем админу ТОЛЬКО этот один заказ
+    
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="✅ Подтвердить", callback_data=f"approve_{last_order['id']}"),
@@ -384,6 +399,7 @@ async def i_paid(message: types.Message):
         ]
     ])
     
+    # Сборка подробного сообщения (без опасных символов разметки)
     msg = (
         f"🔔 НОВАЯ ЗАЯВКА #{last_order['id']}\n\n"
         f"📌 № паспорта: {last_order.get('unique_doc_number', '')}\n"
@@ -393,9 +409,8 @@ async def i_paid(message: types.Message):
         f"🏭 Марка: {last_order.get('brand', '')}\n"
         f"🔧 Модель: {last_order.get('model', '')}\n"
         f"📅 Год: {last_order.get('year', '')}\n"
-        f"👤 ФИО: {last_order.get('full_name', '')}\n"
-        f"🆔 Паспорт: {last_order.get('passport', '')}\n"
-        f"🏠 Адрес: {last_order.get('address', '')}\n"
+        f"🔢 Номер рамы: {last_order.get('frame_number', '')}\n"
+        f"🔢 Номер двигателя: {last_order.get('engine_number', '')}\n"
         f"⚡ Объём: {last_order.get('engine_capacity', '')}\n"
         f"🔄 Тактов: {last_order.get('strokes', '')}\n"
         f"❄️ Охлаждение: {last_order.get('cooling', '')}\n"
@@ -404,9 +419,18 @@ async def i_paid(message: types.Message):
         f"🛑 Передний тормоз: {last_order.get('front_brake', '')}\n"
         f"🛑 Задний тормоз: {last_order.get('rear_brake', '')}\n"
         f"⚖️ Масса: {last_order.get('weight', '')}\n"
+        f"👤 ФИО: {last_order.get('full_name', '')}\n"
+        f"🆔 Паспорт: {last_order.get('passport', '')}\n"
+        f"🏠 Адрес: {last_order.get('address', '')}\n"
     )
     
-    await bot.send_message(ADMIN_ID, msg, reply_markup=kb)
+    # 4. Безопасная отправка сообщения администратору
+    try:
+        await bot.send_message(ADMIN_ID, msg, reply_markup=kb)
+    except Exception as e:
+        print(f"❌ Ошибка отправки сообщения, пробуем очистить текст: {e}")
+        clean_msg = msg.replace("*", "").replace("_", "-")
+        await bot.send_message(ADMIN_ID, clean_msg, reply_markup=kb)
 
 # ========== ИСПРАВЛЕННЫЙ HANDLE_ADMIN ==========
 @dp.callback_query()
@@ -499,7 +523,7 @@ async def referral(message: types.Message):
             f"🔗 Ваша реферальная ссылка:\n{user['referral_link']}\n\n"
             f"Отправьте ссылку друзьям. Когда приглашенный пользователь оформит и оплатит документы, вознаграждение автоматически появится в вашем кабинете."
         )
-        await message.answer(text, reply_markup=main_menu)
+        await message.answer(text, reply_markup=get_main_keyboard())
 
 # ========== ПОДДЕРЖКА ==========
 @dp.message(F.text == "Связь с поддержкой")
@@ -507,7 +531,7 @@ async def support(message: types.Message):
     await message.answer(
         "📞 Связь с поддержкой\n\n"
         "Открыть чат с менеджером: @ridepass_support",
-        reply_markup=main_menu
+        reply_markup=get_main_keyboard()
     )
 
 # ========== ЗАПУСК ==========
