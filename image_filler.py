@@ -41,17 +41,13 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
-    # 1. ЗАПОЛНЯЕМ ПОЛЯ
-    widgets_to_process = []
+    # Заполняем поля, сохраняя встроенные настройки бланка
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
             field.field_value = field_mapping[name]
+            field.text_font = "TiBo"
             field.update()
-            widgets_to_process.append(field)
-
-    # Приказываем читалке сформировать внешний вид текста по правилам шаблона
-    doc.need_appearances(True)
 
     # QR-код
     w = float(page.rect.x1)
@@ -68,14 +64,14 @@ def fill_order_template(data: dict) -> str:
     qr_bytes.seek(0)
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    # Изолируем графический контент страницы
+    # 1. ЗАСТАВЛЯЕМ PDF-РИДЕР ПРИМЕНИТЬ НАСТРОЙКИ ФОРМЫ И КИРИЛЛИЦУ
+    doc.need_appearances(True)
+
+    # 2. ВПАИВАЕМ ТЕКСТ В СТРАНИЦУ (Убираем интерактивность полей)
+    # Заменяем doc.flatten() на page.wrap_contents() для старых версий PyMuPDF
     page.wrap_contents()
 
-    # 2. ВПАИВАЕМ ЧЕРЕЗ УДАЛЕНИЕ ИНТЕРАКТИВНОГО СЛОЯ
-    for field in widgets_to_process:
-        page.delete_widget(field)
-
-    # 3. БЛОКИРУЕМ ЗАПРЕТ НА ВЫДЕЛЕНИЕ И КОПИРОВАНИЕ
+    # 3. БЛОКИРУЕМ ВЫДЕЛЕНИЕ И КОПИРОВАНИЕ ТЕКСТА
     perm_mask = fitz.PDF_PERM_ACCESSIBILITY 
 
     output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
@@ -89,5 +85,5 @@ def fill_order_template(data: dict) -> str:
     )
     doc.close()
     
-    print(f"✅ Документ успешно сохранён, стили и выравнивание защищены: {output_path}")
+    print(f"✅ Документ заполнен по шаблону и заблокирован: {output_path}")
     return output_path
