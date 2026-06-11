@@ -16,13 +16,14 @@ def fill_order_template(data: dict) -> str:
     doc = fitz.open(TEMPLATE_PATH)
     page = doc.load_page(0)
 
-    # 1. РЕГИСТРИРУЕМ ШРИФТ В СТРУКТУРЕ PDF
+    # 1. РЕГИСТРИРУЕМ ШРИФТ В СТРУКТУРЕ PDF ПОД ТЕГОМ F1
     font_tag = "F1"
     if os.path.exists(FONT_PATH):
         page.insert_font(fontname=font_tag, fontfile=FONT_PATH)
         has_font = True
+        print("✅ Шрифт timesbd.ttf успешно зарегистрирован в документе.")
     else:
-        print("⚠️ Ошибка: timesbd.ttf не найден! Шрифт сбросится.")
+        print("⚠️ Ошибка: timesbd.ttf не найден! Будет использован стандартный шрифт шаблона.")
         has_font = False
 
     field_mapping = {
@@ -51,7 +52,7 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
-    # 2. ЗАПОЛНЯЕМ ПОЛЯ И КОРРЕКТИРУЕМ ДИРЕКТИВУ ОФОРМЛЕНИЯ (DA)
+    # 2. ЗАПОЛНЯЕМ ПОЛЯ С ИСПОЛЬЗОВАНИЕМ СОВМЕСТИМОГО СВОЙСТВА SCRIPT
     widgets_to_process = []
     for field in page.widgets():
         name = field.field_name
@@ -59,14 +60,14 @@ def fill_order_template(data: dict) -> str:
             field.field_value = field_mapping[name]
             
             if has_font:
-                old_da = field.script_DA if field.script_DA else ""
-                color_part = "0 0 0.7 rg"  # синий по умолчанию
-                for line in old_da.split('\n'):
-                    if "g" in line or "rg" in line or "G" in line or "RG" in line:
+                old_script = field.script if field.script else ""
+                color_part = "0 0 0.7 rg"
+                for line in old_script.split('\n'):
+                    if any(op in line for op in ["rg", "g", "RG", "G"]):
                         color_part = line.strip()
                         break
                 
-                field.script_DA = f"/{font_tag} 0 Tf\n{color_part}"
+                field.script = f"/{font_tag} 0 Tf\n{color_part}"
                 
             field.update()
             widgets_to_process.append(field)
@@ -84,18 +85,17 @@ def fill_order_template(data: dict) -> str:
     qr_bytes = BytesIO()
     qr_img.save(qr_bytes, "PNG")
     qr_bytes.seek(0)
-    
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    # 3. АКТИВИРУЕМ ПРАВИЛА ВЫРАВНИВАНИЯ И ШРИФТОВ PDF БЛАНКА
+    # 3. ФОРМИРУЕМ ВНЕШНИЙ ВИД ТЕКСТА
     doc.need_appearances(True)
     page.wrap_contents()
 
-    # 4. СВОРАЧИВАЕМ ИНТЕРАКТИВНОСТЬ
+    # 4. ВПАИВАЕМ ТЕКСТ
     for field in widgets_to_process:
         page.delete_widget(field)
 
-    # 5. БЛОКИРУЕМ ЗАПРЕТ НА ВЫДЕЛЕНИЕ
+    # 5. ЗАПРЕЩАЕМ ВЫДЕЛЕНИЕ И КОПИРОВАНИЕ
     perm_mask = fitz.PDF_PERM_ACCESSIBILITY 
 
     output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
@@ -109,5 +109,5 @@ def fill_order_template(data: dict) -> str:
     )
     doc.close()
     
-    print(f"✅ Документ сохранен с оригинальным цветом, выравниванием и новым шрифтом: {output_path}")
+    print(f"✅ Документ успешно заполнен, впаян и заблокирован: {output_path}")
     return output_path
