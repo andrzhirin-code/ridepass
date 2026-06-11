@@ -46,7 +46,7 @@ def fill_order_template(data: dict) -> str:
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
             field.field_value = field_mapping[name]
-            field.text_font = "TiBo"
+            field.text_font = "TimesNewRoman-Bold"  # ИСПРАВЛЕНО
             field.update()
 
     # QR-код
@@ -62,13 +62,13 @@ def fill_order_template(data: dict) -> str:
     qr_bytes = BytesIO()
     qr_img.save(qr_bytes, "PNG")
     qr_bytes.seek(0)
+    
     page.insert_image(qr_rect, stream=qr_bytes)
 
     # 1. ЗАСТАВЛЯЕМ PDF-РИДЕР ПРИМЕНИТЬ НАСТРОЙКИ ФОРМЫ И КИРИЛЛИЦУ
     doc.need_appearances(True)
 
     # 2. ВПАИВАЕМ ТЕКСТ В СТРАНИЦУ (Убираем интерактивность полей)
-    # Заменяем doc.flatten() на page.wrap_contents() для старых версий PyMuPDF
     page.wrap_contents()
 
     # 3. БЛОКИРУЕМ ВЫДЕЛЕНИЕ И КОПИРОВАНИЕ ТЕКСТА
