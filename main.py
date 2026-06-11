@@ -487,7 +487,7 @@ async def handle_admin(callback: CallbackQuery):
                 "doc_hash": clean("doc_hash"),
             }
             
-            pdf_path = await fill_order_template(order_data)
+            pdf_path = await asyncio.to_thread(fill_order_template, order_data)
             
             # ✅ Проверка существования файла перед отправкой
             abs_path = os.path.abspath(pdf_path)
