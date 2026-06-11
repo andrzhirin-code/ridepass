@@ -448,9 +448,6 @@ async def handle_admin(callback: CallbackQuery):
             document = FSInputFile(pdf_path)
             await bot.send_document(order["user_id"], document, caption="✅ Ваш платеж подтверждён! Паспорт мототехники готов.")
             
-            # ИСПРАВЛЕНИЕ: Теперь статус ЖЕСТКО обновляется в базе и заявка исчезает из очереди
-            await update_order_status(order_id, "approved")
-            
             if os.path.exists(pdf_path):
                 os.remove(pdf_path)
             
@@ -463,6 +460,23 @@ async def handle_admin(callback: CallbackQuery):
         await update_order_status(order_id, "rejected")
         await bot.send_message(order["user_id"], "❌ Платёж не подтвержден. Свяжитесь с поддержкой.")
         await callback.message.edit_text(f"❌ Заявка #{order_id} отклонена.")
+
+# ========== РЕФЕРАЛКА ==========
+@dp.message(F.text == "Заработай с нами/реферальная система")
+async def referral(message: types.Message):
+    user = await get_user(message.from_user.id)
+    if user:
+        text = (
+            f"💰 Мой кабинет RidePass\n\n"
+            f"Баланс: {user['balance']} ₽\n"
+            f"Всего заработано: {user['total_earned']} ₽\n"
+            f"Рефералов: {user['referrals_count']}\n"
+            f"Оплаченных заявок рефералов: {user['paid_referrals']}\n"
+            f"Текущая ставка: 20%\n\n"
+            f"🔗 Ваша реферальная ссылка:\n{user['referral_link']}\n\n"
+            f"Отправьте ссылку друзьям. Когда приглашенный пользователь оформит и оплатит документы, вознаграждение автоматически появится в вашем кабинете."
+        )
+        await message.answer(text, reply_markup=main_menu)
 
 # ========== ПОДДЕРЖКА ==========
 @dp.message(F.text == "Связь с поддержкой")
