@@ -18,7 +18,7 @@ def _sync_fill_order_template(data: dict) -> str:
     temp_filled_path = os.path.join(BASE_DIR, f"temp_filled_{entry_num}.pdf")
     final_output_path = os.path.join(BASE_DIR, f"order_{entry_num}.pdf")
 
-    # СТЕП 1: Открываем исходный шаблон формы
+    # СТЕП 1: Открываем оригинальный шаблон
     doc = fitz.open(TEMPLATE_PATH)
     page = doc.load_page(0)
 
@@ -50,33 +50,27 @@ def _sync_fill_order_template(data: dict) -> str:
 
     top_y0, top_y1 = None, None
 
-    # СТЕП 2: Решение проблемы сброса шрифтов по рецептам GitHub PyMuPDF
+    # СТЕП 2: Заполняем поля (СТРОГО используем официальный шрифт "TiRo")
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
             field.field_value = field_mapping[name]
-            
-            try:
-                field.text_font = "TiRo"
-            except Exception:
-                pass
-            
-            field.update()
+            field.update(fontname="TiRo")
             
             if name in ("record_number", "series"):
                 top_y0 = field.rect.y0
                 top_y1 = field.rect.y1
 
-    # Быстрое сохранение на диск БЕЗ тяжелого кэширования
+    # Быстрое промежуточное сохранение БЕЗ тяжелого garbage=3
     doc.save(temp_filled_path, deflate=True)
     doc.close()
 
-    # СТЕП 3: Открываем файл заново
+    # СТЕП 3: Открываем заполненный файл заново для стабильного рендеринга
     render_doc = fitz.open(temp_filled_path)
     render_page = render_doc.load_page(0)
     rect = render_page.rect
     
-    # СТЕП 4: Безопасное нанесение QR-кода
+    # СТЕП 4: Генерация и нанесение QR-кода на чистый графический слой
     w = float(rect.x1)
     y0 = top_y0 if top_y0 is not None else rect.y1 * 0.078
     y1 = top_y1 if top_y1 is not None else rect.y1 * 0.135
@@ -96,26 +90,26 @@ def _sync_fill_order_template(data: dict) -> str:
     
     render_page.insert_image(qr_rect, stream=qr_bytes)
 
-    # Делаем легковесный снимок страницы (DPI=120)
+    # Делаем финальный легкий снимок страницы (DPI=120)
     pix = render_page.get_pixmap(dpi=120, alpha=False)
     render_doc.close()
 
-    # СТЕП 5: Создаем финальный растровый документ
+    # СТЕП 5: Создаем итоговый защищенный растровый документ
     dst_doc = fitz.open()
     new_page = dst_doc.new_page(width=rect.width, height=rect.height)
     new_page.insert_image(rect, pixmap=pix)
     
     pix = None
 
-    # Финальное сохранение с глубокой очисткой структуры
+    # Финальное сохранение с глубокой очисткой мусора
     dst_doc.save(final_output_path, garbage=3, deflate=True, clean=True)
     dst_doc.close()
 
-    # СТЕП 6: Удаляем временный промежуточный файл
+    # СТЕП 6: Чистим временный файл с диска
     if os.path.exists(temp_filled_path):
         os.remove(temp_filled_path)
 
-    # Принудительное освобождение RAM для бесплатного тарифа Render
+    # Принудительный сброс C-кэша текстур MuPDF для лимита 512 МБ
     fitz.TOOLS.store_shrink(100)
     gc.collect()
     
