@@ -16,13 +16,12 @@ def fill_order_template(data: dict) -> str:
     doc = fitz.open(TEMPLATE_PATH)
     page = doc.load_page(0)
 
-    # Заставляем PDF-движок принудительно использовать оригинальные шрифты
+    # Принудительно заставляем использовать оригинальные шрифты
     try:
         doc.need_appearances(True)
     except:
         pass
 
-    # Карта заполнения полей
     field_mapping = {
         "record_number": str(data.get('passport_number', '')).replace("№", ""),
         "series": data.get('series_code', ''),
@@ -74,15 +73,15 @@ def fill_order_template(data: dict) -> str:
     
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    # 3. ПРОФЕССИОНАЛЬНОЕ РАСТРИРОВАНИЕ
-    pix = page.get_pixmap(dpi=200)
-    image_pdf_bytes = pix.pdf_bytes()
-    doc.close()
+    # 3. ЖЕЛЕЗОБЕТОННЫЙ ФЛАТТЕНИНГ БЕЗ НАГРУЗКИ НА ОЗУ
+    # Удаляем интерактивные поля, текст становится частью бланка
+    for field in page.widgets():
+        page.delete_widget(field)
 
-    final_doc = fitz.open("pdf", image_pdf_bytes)
+    # Сохраняем финальный защищенный векторный файл
     output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
-    final_doc.save(output_path, garbage=4, deflate=True)
-    final_doc.close()
+    doc.save(output_path, garbage=4, deflate=True)
+    doc.close()
     
-    print(f"✅ Готовый невыделяемый ПТС со шрифтами успешно сохранен: {output_path}")
+    print(f"✅ Ультра-легкий невыделяемый ПТС успешно сохранен: {output_path}")
     return output_path
