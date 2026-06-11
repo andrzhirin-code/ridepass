@@ -8,13 +8,31 @@ TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 FONT_PATH = os.path.join(BASE_DIR, "ARIAL.TTF")
 
 def fill_order_template(data: dict) -> str:
+    # ДОБАВЛЕНО ЛОГИРОВАНИЕ
+    print(f"📝 fill_order_template вызван")
+    print(f"📦 Данные получены: {data}")
+    
+    # Проверка наличия обязательных полей
+    required_fields = ['passport_number', 'series_code', 'entry_number', 'issue_date', 
+                       'vehicle_type_vision', 'brand', 'model', 'year', 'frame_number', 
+                       'engine_number', 'engine_capacity', 'strokes', 'cooling', 
+                       'transmission', 'fuel_system', 'front_brake', 'rear_brake', 
+                       'weight', 'full_name', 'passport', 'address', 'doc_hash']
+    
+    missing = [f for f in required_fields if f not in data or data[f] is None]
+    if missing:
+        print(f"❌ ОШИБКА: Отсутствуют поля: {missing}")
+        raise ValueError(f"Отсутствуют обязательные поля: {missing}")
+    
+    print(f"✅ Все поля присутствуют, начинаем генерацию PDF")
+    
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
 
     doc = fitz.open(TEMPLATE_PATH)
     page = doc[0]
 
-    # ИСПРАВЛЕНИЕ 1: Говорим PDF использовать родные стили полей бланка (Times New Roman, цвета)
+    # ИСПРАВЛЕНИЕ 1: Говорим PDF использовать родные стили полей бланка
     try:
         doc.need_appearances(True)
     except:
@@ -69,12 +87,12 @@ def fill_order_template(data: dict) -> str:
     qr_rect = fitz.Rect(1550, 200, 1750, 400)
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    # Растрирование страницы в картинку (300 DPI — текст чёткий)
+    # Растрирование страницы в картинку
     pix = page.get_pixmap(dpi=300)
 
-    # ИСПРАВЛЕНИЕ 2: Сначала извлекаем байты картинки, ПОКА ДОКУМЕНТ ОТКРЫТ!
+    # Сначала извлекаем байты картинки, ПОКА ДОКУМЕНТ ОТКРЫТ!
     image_pdf_bytes = pix.pdf_bytes()
-    doc.close() # Теперь можно безопасно закрыть шаблон
+    doc.close()
 
     # Создаём новый PDF из картинки
     final_doc = fitz.open("pdf", image_pdf_bytes)
@@ -83,4 +101,5 @@ def fill_order_template(data: dict) -> str:
     final_doc.save(output_path, garbage=4, deflate=True)
     final_doc.close()
     
+    print(f"✅ PDF сохранён: {output_path}")
     return output_path
