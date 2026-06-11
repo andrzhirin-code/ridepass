@@ -354,7 +354,7 @@ async def process_phone(message: types.Message, state: FSMContext):
             print(f"Ошибка в process_phone: {e}")
             await message.answer(f"❌ Ошибка: {str(e)}")
 
-# ========== I_PAID (ОСТАВЛЕН БЕЗ ИЗМЕНЕНИЙ) ==========
+# ========== I_PAID (БЕЗ ИЗМЕНЕНИЙ) ==========
 @dp.message(F.text == "Я оплатил")
 async def i_paid(message: types.Message):
     await message.answer(
@@ -398,7 +398,7 @@ async def i_paid(message: types.Message):
         
         await bot.send_message(ADMIN_ID, text, reply_markup=kb)
 
-# ========== ОБРАБОТЧИК КНОПОК (ИСПРАВЛЕН) ==========
+# ========== ОБРАБОТЧИК КНОПОК (ИСПРАВЛЕН ДЛЯ PDF) ==========
 @dp.callback_query()
 async def handle_admin(callback: CallbackQuery):
     await callback.answer()
@@ -417,9 +417,6 @@ async def handle_admin(callback: CallbackQuery):
     
     if action == "approve":
         try:
-            # Логирование для отладки
-            print(f"📝 Начинаем генерацию PDF для заказа #{order_id}")
-            
             def get_clean(val):
                 return str(val) if val is not None else ""
             
@@ -448,9 +445,17 @@ async def handle_admin(callback: CallbackQuery):
                 "doc_hash": get_clean(order["doc_hash"]),
             }
             
+            # ДОБАВЛЕНО: Логирование перед генерацией PDF
+            print(f"📝 Начинаем генерацию PDF для заказа #{order_id}")
             print(f"📦 Данные для PDF: {order_data}")
             
             pdf_path = await asyncio.to_thread(fill_order_template, order_data)
+            
+            # ДОБАВЛЕНО: Проверка, что файл создан
+            if not os.path.exists(pdf_path):
+                print(f"❌ Файл PDF не создан: {pdf_path}")
+                raise Exception("PDF файл не был создан")
+            
             print(f"✅ PDF сгенерирован: {pdf_path}")
             
             document = FSInputFile(pdf_path)
@@ -465,7 +470,6 @@ async def handle_admin(callback: CallbackQuery):
             
         except Exception as e:
             print(f"❌ ОШИБКА генерации PDF: {e}")
-            await bot.send_message(ADMIN_ID, f"❌ Ошибка при генерации PDF: {e}")
             await callback.message.edit_text(f"❌ Ошибка: {e}")
             
     elif action == "reject":
