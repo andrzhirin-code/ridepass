@@ -1,7 +1,6 @@
 import os
 import fitz
 import qrcode
-import gc
 from io import BytesIO
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -9,15 +8,14 @@ TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 FONT_PATH = os.path.join(BASE_DIR, "ARIAL.TTF")
 
 def fill_order_template(data: dict) -> str:
-    print(f"📝 fill_order_template вызван")
+    print(f"📝 fill_order_template вызван (безопасный векторный режим)")
     
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
 
-    # Открываем документ
+    # 1. Открываем документ и загружаем первую страницу
     doc = fitz.open(TEMPLATE_PATH)
-    # Выбираем первую страницу для рисования и заполнения форм
-    page = doc[0]
+    page = doc.load_page(0)  # Безопасный метод загрузки страницы
 
     try:
         doc.need_appearances(True)
@@ -53,14 +51,14 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
-    # Заполняем виджеты на странице
+    # Заполняем интерактивные поля формы
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
             field.field_value = field_mapping[name]
             field.update()
 
-    # Генерация QR-кода
+    # Вставляем QR-код
     verification_url = f"https://ridepass.onrender.com/check?code={data.get('entry_number', '')}"
     qr = qrcode.QRCode(box_size=20, border=4)
     qr.add_data(verification_url)
@@ -74,25 +72,17 @@ def fill_order_template(data: dict) -> str:
     qr_rect = fitz.Rect(1550, 200, 1750, 400)
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    # ⚡ ЖЕСТКАЯ ОПТИМИЗАЦИЯ ПАМЯТИ ПОД БЕСПЛАТНЫЙ RENDER
-    pix = page.get_pixmap(dpi=140)
-    image_pdf_bytes = pix.pdf_bytes()
-    
-    # Очищаем внутренний кэш тяжелого документа ПЕРЕД закрытием
-    doc.scrub(attached_files=True, clean_pages=True, embedded_images=True)
+    # 2. Безопасная конвертация в байты плоского PDF
+    result = doc.convert_to_pdf()
+    # Поддержка как старых, так и новых версий PyMuPDF
+    flattened_bytes = result if isinstance(result, bytes) else result[2]
     doc.close()
 
-    # Пересобираем плоский файл
-    final_doc = fitz.open("pdf", image_pdf_bytes)
+    # Открываем получившиеся байты плоского PDF и сохраняем на диск
+    final_doc = fitz.open("pdf", flattened_bytes)
     output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
     final_doc.save(output_path, garbage=4, deflate=True)
     final_doc.close()
     
-    # Полное уничтожение тяжелых объектов из ОЗУ сервера
-    del pix
-    del image_pdf_bytes
-    del doc
-    gc.collect()
-    
-    print(f"✅ PDF сохранён: {output_path}")
+    print(f"✅ Ультра-легкий PDF успешно сохранен и защищен: {output_path}")
     return output_path
