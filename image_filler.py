@@ -6,6 +6,9 @@ from io import BytesIO
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 
+# Ссылка на функцию отправки в Telegram (из database.py)
+from database import send_telegram
+
 def fill_order_template(data: dict) -> str:
     print("📝 fill_order_template: старт")
     
@@ -14,6 +17,10 @@ def fill_order_template(data: dict) -> str:
 
     doc = fitz.open(TEMPLATE_PATH)
     page = doc.load_page(0)
+
+    # 🔥 ВЫВОДИМ СПИСОК ШРИФТОВ В TELEGRAM
+    fonts = doc.form_fonts
+    send_telegram(f"🖋 Доступные шрифты в форме:\n{fonts}")
 
     field_mapping = {
         "record_number": str(data.get('passport_number', '')).replace("№", ""),
@@ -62,6 +69,7 @@ def fill_order_template(data: dict) -> str:
     qr_bytes = BytesIO()
     qr_img.save(qr_bytes, "PNG")
     qr_bytes.seek(0)
+    
     page.insert_image(qr_rect, stream=qr_bytes)
 
     # 1. ЗАСТАВЛЯЕМ PDF-РИДЕР ПРИМЕНИТЬ НАСТРОЙКИ ФОРМЫ И КИРИЛЛИЦУ
