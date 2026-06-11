@@ -8,7 +8,7 @@ TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 FONT_PATH = os.path.join(BASE_DIR, "timesbd.ttf")
 
 def fill_order_template(data: dict) -> str:
-    print(f"📝 fill_order_template: запуск эталонной векторной фиксации ПТС")
+    print(f"📝 fill_order_template: запуск генерации ПТС")
     
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
@@ -19,7 +19,7 @@ def fill_order_template(data: dict) -> str:
     doc = fitz.open(TEMPLATE_PATH)
     page = doc.load_page(0)
 
-    # Регистрируем ваш Times New Roman Bold в ресурсах документа
+    # Регистрируем Times New Roman Bold
     font_name = "TimesNewRoman-Bold"
     page.insert_font(fontname=font_name, fontfile=FONT_PATH)
 
@@ -63,7 +63,7 @@ def fill_order_template(data: dict) -> str:
                 top_y0 = field.rect.y0
                 top_y1 = field.rect.y1
 
-    # 2. АВТОМАТИЧЕСКИЙ РАСЧЕТ ИДЕАЛЬНОЙ СИММЕТРИИ QR-КОДА
+    # 2. QR-код
     w = float(page.rect.x1)
     y0 = top_y0 if top_y0 is not None else page.rect.y1 * 0.078
     y1 = top_y1 if top_y1 is not None else page.rect.y1 * 0.135
@@ -71,7 +71,6 @@ def fill_order_template(data: dict) -> str:
 
     qr_rect = fitz.Rect(w - qr_size - (w * 0.05), y0, w - (w * 0.05), y1)
 
-    # ИСПРАВЛЕНИЕ: правильная ссылка
     verification_url = f"https://ridepass.onrender.com/check?code={data.get('entry_number', '')}"
     
     qr = qrcode.QRCode(box_size=15, border=1)
@@ -85,20 +84,14 @@ def fill_order_template(data: dict) -> str:
     
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    # 3. ЭТАЛОННОЕ ВЕКТОРНОЕ СПЛЮЩИВАНИЕ ПО ДОКУМЕНТАЦИИ PyMuPDF
-    flattened_bytes = doc.tobytes(
-        garbage=4, 
-        deflate=True, 
-        clean=True, 
-        flatten=True
-    )
-    doc.close()
+    # 3. Удаляем интерактивные поля (делаем текст невыделяемым)
+    for field in page.widgets():
+        page.delete_widget(field)
 
-    # Открываем получившиеся плоские байты и сохраняем готовый файл
-    final_doc = fitz.open("pdf", flattened_bytes)
+    # 4. Сохраняем документ
     output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
-    final_doc.save(output_path, garbage=4, deflate=True)
-    final_doc.close()
+    doc.save(output_path, garbage=4, deflate=True)
+    doc.close()
     
-    print(f"✅ Плоский ПТС со шрифтами бланка успешно сохранен и защищен: {output_path}")
+    print(f"✅ ПТС успешно сохранен: {output_path}")
     return output_path
