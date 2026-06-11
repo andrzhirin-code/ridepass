@@ -17,7 +17,7 @@ def fill_order_template(data: dict) -> str:
     doc = fitz.open(TEMPLATE_PATH)
     page = doc.load_page(0)
 
-    # КРИТИЧЕСКИ ВАЖНО: Заставляем PyMuPDF использовать оригинальные шрифты
+    # Заставляем PyMuPDF использовать оригинальные шрифты и цвета из шаблона
     try:
         doc.need_appearances(True)
     except:
@@ -59,7 +59,6 @@ def fill_order_template(data: dict) -> str:
             field.field_value = field_mapping[name]
             field.update()
             
-            # Запоминаем точную высоту верхних полей для выравнивания QR-кода
             if name in ("record_number", "series"):
                 top_y0 = field.rect.y0
                 top_y1 = field.rect.y1
@@ -89,20 +88,23 @@ def fill_order_template(data: dict) -> str:
 
     # 3. ЭКОНОМНОЕ РАСТРИРОВАНИЕ ДЛЯ ЗАЩИТЫ ОТ КОПИРОВАНИЯ
     pix = page.get_pixmap(dpi=140)
-    image_pdf_bytes = pix.pdf_bytes()
+    
+    # ИСПРАВЛЕНИЕ: правильный метод для получения PDF байт из Pixmap
+    image_pdf_bytes = pix.tobytes("pdf")
     
     doc.scrub(attached_files=True, clean_pages=True, embedded_images=True)
     doc.close()
 
+    # Сохраняем финальный защищенный PDF файл
     final_doc = fitz.open("pdf", image_pdf_bytes)
     output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
     final_doc.save(output_path, garbage=4, deflate=True)
     final_doc.close()
     
-    # Очистка памяти
+    # Полная очистка памяти под бесплатный Render
     del pix
     del image_pdf_bytes
-    del doc
+    del final_doc
     gc.collect()
     
     print(f"✅ Идеальный защищенный ПТС со всеми вашими шрифтами сохранен: {output_path}")
