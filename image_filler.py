@@ -8,7 +8,6 @@ TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 FONT_PATH = os.path.join(BASE_DIR, "ARIAL.TTF")
 
 def fill_order_template(data: dict) -> str:
-    # ДОБАВЬ ЭТИ СТРОКИ ЛОГИРОВАНИЯ:
     print(f"📝 fill_order_template вызван")
     print(f"📦 Данные: {data}")
     
@@ -71,7 +70,8 @@ def fill_order_template(data: dict) -> str:
     qr_rect = fitz.Rect(1550, 200, 1750, 400)
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    pix = page.get_pixmap(dpi=300)
+    # ИЗМЕНЕНО: dpi=150 вместо 300 для экономии памяти
+    pix = page.get_pixmap(dpi=150)
 
     image_pdf_bytes = pix.pdf_bytes()
     doc.close()
