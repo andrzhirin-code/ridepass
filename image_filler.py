@@ -68,7 +68,8 @@ def fill_order_template(data: dict) -> str:
     doc.need_appearances(True)
 
     # 2. ВПАИВАЕМ ТЕКСТ В СТРАНИЦУ (Убираем интерактивность полей)
-    doc.flatten()
+    # Заменяем doc.flatten() на page.wrap_contents() для старых версий PyMuPDF
+    page.wrap_contents()
 
     # 3. БЛОКИРУЕМ ВЫДЕЛЕНИЕ И КОПИРОВАНИЕ ТЕКСТА
     perm_mask = fitz.PDF_PERM_ACCESSIBILITY 
