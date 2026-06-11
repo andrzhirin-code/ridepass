@@ -5,16 +5,23 @@ from io import BytesIO
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
+FONT_PATH = os.path.join(BASE_DIR, "timesbd.ttf")
 
 def fill_order_template(data: dict) -> str:
-    print(f"📝 fill_order_template: запуск безопасной векторной фиксации текста")
+    print(f"📝 fill_order_template: запуск продакшн-генерации ПТС")
     
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
+    if not os.path.exists(FONT_PATH):
+        raise FileNotFoundError(f"Критическая ошибка: Файл шрифта {FONT_PATH} не найден в репозитории! Загрузите timesbd.ttf")
 
     # 1. Открываем шаблон формы
     doc = fitz.open(TEMPLATE_PATH)
     page = doc.load_page(0)
+
+    # Добавляем ваш Times New Roman Bold в ресурсы документа
+    font_name = "TimesNewRoman-Bold"
+    page.insert_font(fontname=font_name, fontfile=FONT_PATH)
 
     field_mapping = {
         "record_number": str(data.get('passport_number', '')).replace("№", ""),
@@ -42,44 +49,22 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
-    # Массив для сохранения физических координат текстовых полей на бланке
-    lines_to_draw = []
     top_y0, top_y1 = None, None
 
-    # Считываем точное расположение каждой интерактивной формы на вашем бланке
+    # Заполняем поля формы
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
-            rect = field.rect
-            text_value = field_mapping[name]
-            
-            # Вычисляем базовую линию текста строго по нижней границе поля ввода
-            point = fitz.Point(rect.x0 + 2, rect.y1 - (rect.height * 0.18))
-            
-            # Автоматически считываем высоту строки
-            font_size = rect.height * 0.75
-            
-            lines_to_draw.append((point, text_value, font_size))
+            # Принудительно связываем загруженный шрифт Times с интерактивным полем
+            field.text_font = font_name
+            field.field_value = field_mapping[name]
+            field.update()
             
             if name in ("record_number", "series"):
-                top_y0 = rect.y0
-                top_y1 = rect.y1
+                top_y0 = field.rect.y0
+                top_y1 = field.rect.y1
 
-    # 2. ОЧИСТКА СЛОЯ ФОРМ (Стираем синие интерактивные рамки)
-    for field in page.widgets():
-        page.delete_widget(field)
-
-    # 3. ВЖИВЛЕНИЕ ТЕКСТА КАК ГРАФИЧЕСКИХ КОНТУРОВ (Нельзя выделить)
-    for point, text_value, font_size in lines_to_draw:
-        page.insert_text(
-            point, 
-            text_value, 
-            fontname="helv-bold",  # Встроенный шрифт Helvetica-Bold
-            fontsize=font_size, 
-            color=(0, 0, 0)
-        )
-
-    # 4. ИДЕАЛЬНОЕ ВЫРАВНИВАНИЕ QR-КОДА
+    # 2. АВТОМАТИЧЕСКИЙ РАСЧЕТ ИДЕАЛЬНОЙ СИММЕТРИИ QR-КОДА
     w = float(page.rect.x1)
     y0 = top_y0 if top_y0 is not None else page.rect.y1 * 0.078
     y1 = top_y1 if top_y1 is not None else page.rect.y1 * 0.135
@@ -101,10 +86,20 @@ def fill_order_template(data: dict) -> str:
     
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    # 5. Сохраняем сверхлегкий векторный файл
-    output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
-    doc.save(output_path, garbage=4, deflate=True)
+    # 3. НАТИВНОЕ ВЕКТОРНОЕ СПЛЮЩИВАНИЕ ПО ДОКУМЕНТАЦИИ ADOBE
+    flattened_bytes = doc.write(
+        garbage=4, 
+        deflate=True, 
+        clean=True, 
+        expand_incremental=False
+    )
     doc.close()
+
+    # Открываем плоский PDF и сохраняем на диск Render
+    final_doc = fitz.open("pdf", flattened_bytes)
+    output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
+    final_doc.save(output_path, garbage=4, deflate=True)
+    final_doc.close()
     
-    print(f"✅ Документ успешно сгенерирован в векторном режиме: {output_path}")
+    print(f"✅ Ультра-легкий плоский ПТС со шрифтами успешно сохранен: {output_path}")
     return output_path
