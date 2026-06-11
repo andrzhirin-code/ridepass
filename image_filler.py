@@ -5,17 +5,19 @@ from io import BytesIO
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
-FONT_PATH = os.path.join(BASE_DIR, "ARIAL.TTF")
 
 def fill_order_template(data: dict) -> str:
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
 
+    # 1. Открываем шаблон формы
     doc = fitz.open(TEMPLATE_PATH)
-    page = doc[0]
+    page = doc[0] # Важно: берем конкретно первую страницу через индекс [0]
 
-    if os.path.exists(FONT_PATH):
-        page.insert_font(fontname="ari", fontfile=FONT_PATH)
+    try:
+        doc.need_appearances(True)
+    except:
+        pass
 
     field_mapping = {
         "record_number": f"№{data.get('passport_number', '')}",
@@ -43,15 +45,16 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
+    # Заполняем поля формы
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
             field.field_value = field_mapping[name]
             field.update()
 
-    # QR-код
-    verification_url = f"https://ridepass.onrender.com/check?code={data.get('entry_number', '')}"
-    qr = qrcode.QRCode(box_size=20, border=4)
+    # 2. БЕЗОПАСНЫЙ РАСЧЕТ И ВСТАВКА QR-КОДА
+    verification_url = f"https://onrender.com{data.get('entry_number', '')}"
+    qr = qrcode.QRCode(box_size=10, border=1)
     qr.add_data(verification_url)
     qr.make(fit=True)
     qr_img = qr.make_image(fill_color="black", back_color="white")
@@ -60,14 +63,20 @@ def fill_order_template(data: dict) -> str:
     qr_img.save(qr_bytes, "PNG")
     qr_bytes.seek(0)
     
-    qr_rect = fitz.Rect(1550, 200, 1750, 400)
+    # Чтобы не зависеть от масштаба, берем ширину страницы напрямую
+    # Голограмма обычно находится симметрично. Если ширина ~2000, 
+    # то отступ справа составит width - 350.
+    w = page.rect.width
+    # Универсальный квадрат для правого верхнего угла бланка
+    qr_rect = fitz.Rect(w - 380, 160, w - 160, 380)
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    # Растрирование страницы в картинку (300 DPI — текст чёткий)
-    pix = page.get_pixmap(dpi=300)
+    # 3. ЛЕГКОВЕСНОЕ РАСТРИРОВАНИЕ (Оптимизация под бесплатный Render)
+    # dpi=200-250 вполне достаточно, чтобы текст стал невыделяемой картинкой,
+    # но сервер не падал по лимитам памяти (OOM)
+    pix = page.get_pixmap(dpi=250)
     doc.close()
 
-    # Создаём новый PDF из картинки
     image_pdf_bytes = pix.pdf_bytes()
     final_doc = fitz.open("pdf", image_pdf_bytes)
     
