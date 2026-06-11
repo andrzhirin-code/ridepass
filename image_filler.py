@@ -8,16 +8,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 
 def fill_order_template(data: dict) -> str:
-    print(f"📝 fill_order_template: запуск генерации через растрирование")
+    print("📝 fill_order_template: запуск")
     
     if not os.path.exists(TEMPLATE_PATH):
         raise FileNotFoundError(f"Шаблон не найден: {TEMPLATE_PATH}")
 
-    # 1. Открываем шаблон формы
     doc = fitz.open(TEMPLATE_PATH)
     page = doc.load_page(0)
 
-    # Заставляем использовать оригинальные шрифты
     try:
         doc.need_appearances(True)
     except:
@@ -49,28 +47,15 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
-    # Переменные для перехвата координат верхней шапки
-    top_y0, top_y1 = None, None
-
-    # Заполняем поля формы
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
             field.field_value = field_mapping[name]
             field.update()
-            
-            if name in ("record_number", "series"):
-                top_y0 = field.rect.y0
-                top_y1 = field.rect.y1
 
-    # 2. QR-код
+    # QR-код
     w = float(page.rect.x1)
-    y0 = top_y0 if top_y0 is not None else page.rect.y1 * 0.078
-    y1 = top_y1 if top_y1 is not None else page.rect.y1 * 0.135
-    qr_size = y1 - y0
-
-    qr_rect = fitz.Rect(w - qr_size - (w * 0.05), y0, w - (w * 0.05), y1)
-
+    qr_rect = fitz.Rect(w - 250, 200, w - 50, 400)
     verification_url = f"https://ridepass.onrender.com/check?code={data.get('entry_number', '')}"
     
     qr = qrcode.QRCode(box_size=15, border=1)
@@ -84,18 +69,23 @@ def fill_order_template(data: dict) -> str:
     
     page.insert_image(qr_rect, stream=qr_bytes)
 
-    # 3. Растрирование с DPI=100
+    # Вот здесь самое важное — рендеринг в картинку с низким DPI
     pix = page.get_pixmap(dpi=100)
     
-    # Сохраняем как PDF напрямую
-    output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
-    pix.save(output_path)
+    # Конвертация в PDF через правильный метод
+    pdf_bytes = pix.tobytes("pdf")
     
     doc.close()
     
-    # Очистка памяти
+    # Сохраняем результат
+    final_doc = fitz.open("pdf", pdf_bytes)
+    output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
+    final_doc.save(output_path, garbage=4, deflate=True)
+    final_doc.close()
+    
     del pix
+    del pdf_bytes
     gc.collect()
     
-    print(f"✅ Документ сохранен: {output_path}")
+    print(f"✅ PDF сохранён: {output_path}")
     return output_path
