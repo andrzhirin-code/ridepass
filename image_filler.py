@@ -18,9 +18,12 @@ def fill_order_template(data: dict) -> str:
     doc = fitz.open(TEMPLATE_PATH)
     page = doc.load_page(0)
 
-    # 🔥 ВЫВОДИМ СПИСОК ШРИФТОВ В TELEGRAM
-    fonts = doc.form_fonts
-    send_telegram(f"🖋 Доступные шрифты в форме:\n{fonts}")
+    # 🔥 ВЫВОДИМ СПИСОК ШРИФТОВ ЧЕРЕЗ GET_PAGE_FONTS (работает на всех версиях)
+    fonts = []
+    for font in doc.get_page_fonts(0):
+        fonts.append(font[3])  # 3-й элемент — это имя шрифта
+    fonts = list(set(fonts))  # убираем дубликаты
+    send_telegram(f"🖋 Шрифты на странице:\n{fonts}")
 
     field_mapping = {
         "record_number": str(data.get('passport_number', '')).replace("№", ""),
@@ -76,7 +79,6 @@ def fill_order_template(data: dict) -> str:
     doc.need_appearances(True)
 
     # 2. ВПАИВАЕМ ТЕКСТ В СТРАНИЦУ (Убираем интерактивность полей)
-    # Заменяем doc.flatten() на page.wrap_contents() для старых версий PyMuPDF
     page.wrap_contents()
 
     # 3. БЛОКИРУЕМ ВЫДЕЛЕНИЕ И КОПИРОВАНИЕ ТЕКСТА
