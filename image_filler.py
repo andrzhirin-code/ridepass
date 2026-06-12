@@ -175,10 +175,16 @@ def fill_order_template(data: dict) -> str:
             # ── Однострочное — insert_text с ручным baseline ────────────
             rc = -1
             while fontsize > 4:
-                # baseline = вертикальный центр rect
                 baseline_y = rect.y0 + (rect.height + fontsize * 0.75) / 2
                 point = fitz.Point(rect.x0 + 2, baseline_y)
-                written = page.insert_text(
+                
+                # Простая оценка ширины: ~0.6 * fontsize на символ
+                estimated_width = len(value) * fontsize * 0.6
+                if estimated_width > rect.width - 4:
+                    fontsize -= 2 if fontsize > 20 else 0.5
+                    continue
+                
+                page.insert_text(
                     point,
                     value,
                     fontname=font_name,
@@ -186,12 +192,8 @@ def fill_order_template(data: dict) -> str:
                     fontsize=fontsize,
                     color=fd["color"],
                 )
-                # Проверяем влезает ли по ширине
-                text_width = fitz.get_text_length(value, fontname=font_name, fontsize=fontsize)
-                if text_width <= rect.width - 4:
-                    rc = 0
-                    break
-                fontsize -= 2 if fontsize > 20 else 0.5
+                rc = 0
+                break
         
         if fontsize <= 4:
             send_telegram(f"⚠️ Не влезло: {fd['name']}")
