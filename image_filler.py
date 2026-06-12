@@ -8,9 +8,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 FONT_PATH = os.path.join(BASE_DIR, "timesbd.ttf")
 
-# Импорт функции отправки в Telegram
-from database import send_telegram
-
 def get_field_params(doc, field):
     """Читает fontsize и align из /DA и /Q поля."""
     xref = field._annot.xref
@@ -115,19 +112,14 @@ def fill_order_template(data: dict) -> str:
             fontsize, align = get_field_params(doc, field)
             color = get_field_color(doc, field)
             
-            # Диагностика для record_number в Telegram
-            if name == "record_number":
-                xref = field._annot.xref
-                da_raw = doc.xref_get_key(xref, "DA")
-                send_telegram(
-                    f"[DEBUG] record_number DA: {da_raw}\n"
-                    f"[DEBUG] record_number color считан: {color}\n"
-                    f"[DEBUG] record_number text_color: {field.text_color}"
-                )
+            rect = field.rect
+            # ⚠️ ОГРАНИЧИВАЕМ FONTSIZE — НЕ БОЛЬШЕ ВЫСОТЫ ПОЛЯ
+            if fontsize > rect.height:
+                fontsize = rect.height * 0.75
             
             fields_data.append({
                 "name": name,
-                "rect": field.rect,
+                "rect": rect,
                 "value": field_mapping[name],
                 "color": color,
                 "fontsize": fontsize,
@@ -145,17 +137,28 @@ def fill_order_template(data: dict) -> str:
     for field in widgets_to_delete:
         page.delete_widget(field)
 
-    # 5. Рисуем текст поверх со своим шрифтом
+    # 5. Рисуем текст поверх со своим шрифтом (с автоподбором)
     for fd in fields_data:
-        page.insert_textbox(
-            fd["rect"],
-            fd["value"],
-            fontname=font_name,
-            fontfile=FONT_PATH,
-            fontsize=fd["fontsize"],
-            color=fd["color"],
-            align=fd["align"]
-        )
+        fontsize = fd["fontsize"]
+        rc = -1
+        
+        # Уменьшаем шрифт пока не влезет
+        while fontsize > 4:
+            rc = page.insert_textbox(
+                fd["rect"],
+                fd["value"],
+                fontname=font_name,
+                fontfile=FONT_PATH,
+                fontsize=fontsize,
+                color=fd["color"],
+                align=fd["align"]
+            )
+            if rc >= 0:
+                break
+            fontsize -= 0.5
+        
+        if rc < 0:
+            print(f"⚠️ Не влезло даже при fontsize=4: {fd['name']}")
 
     # 6. QR-код
     w = float(page.rect.x1)
