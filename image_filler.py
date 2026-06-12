@@ -144,7 +144,7 @@ def fill_order_template(data: dict) -> str:
     for field in widgets_to_delete:
         page.delete_widget(field)
 
-    # 4. Рисуем текст поверх со своим шрифтом (единый цикл)
+    # 4. Рисуем текст поверх со своим шрифтом
     for fd in fields_data:
         fontsize = fd["fontsize"]
         rect = fd["rect"]
@@ -154,25 +154,54 @@ def fill_order_template(data: dict) -> str:
         if fd["name"] == "record_number":
             fontsize = min(fontsize, rect.height * 0.85)
 
-        rc = -1
-        while fontsize > 4:
-            rc = page.insert_textbox(
-                fitz.Rect(rect.x0 + 2, rect.y0 + 2, rect.x1 - 2, rect.y1 - 2),
-                value,
-                fontname=font_name,
-                fontfile=FONT_PATH,
-                fontsize=fontsize,
-                color=fd["color"],
-                align=fd["align"],
-            )
-            if rc >= 0:
-                break
-            fontsize -= 2 if fontsize > 20 else 0.5
+        if fd["name"] == "address":
+            # Многострочное — от верха rect
+            rc = -1
+            while fontsize > 4:
+                rc = page.insert_textbox(
+                    fitz.Rect(rect.x0 + 2, rect.y0 + 2, rect.x1 - 2, rect.y1 - 2),
+                    value,
+                    fontname=font_name,
+                    fontfile=FONT_PATH,
+                    fontsize=fontsize,
+                    color=fd["color"],
+                    align=fd["align"],
+                )
+                if rc >= 0:
+                    break
+                fontsize -= 2 if fontsize > 20 else 0.5
+        else:
+            # Однострочное — центрируем вертикально
+            rc = -1
+            while fontsize > 4:
+                # Высота строки ~1.2 * fontsize
+                line_height = fontsize * 1.2
+                # Вертикальный центр rect
+                center_y = rect.y0 + rect.height / 2
+                # Rect высотой одной строки, центрированный
+                line_rect = fitz.Rect(
+                    rect.x0 + 2,
+                    center_y - line_height / 2,
+                    rect.x1 - 2,
+                    center_y + line_height / 2,
+                )
+                rc = page.insert_textbox(
+                    line_rect,
+                    value,
+                    fontname=font_name,
+                    fontfile=FONT_PATH,
+                    fontsize=fontsize,
+                    color=fd["color"],
+                    align=fd["align"],
+                )
+                if rc >= 0:
+                    break
+                fontsize -= 2 if fontsize > 20 else 0.5
 
         if fontsize <= 4:
             send_telegram(f"⚠️ Не влезло: {fd['name']}")
 
-    # 5. ВПАИВАЕМ текст в страницу — ПОСЛЕ рисования
+    # 5. ВПАИВАЕМ текст
     page.wrap_contents()
     doc.need_appearances(False)
 
@@ -197,11 +226,12 @@ def fill_order_template(data: dict) -> str:
 
     output_path = os.path.join(BASE_DIR, f"order_{data.get('entry_number', 'temp')}.pdf")
     doc.save(
-        output_path, 
-        garbage=4, 
-        deflate=True, 
-        encryption=fitz.PDF_ENCRYPT_AES_256, 
-        owner_pw=os.urandom(16).hex(), 
+        output_path,
+        garbage=4,
+        deflate=True,
+        clean=True,  # ← ВАЖНО: фиксирует текст
+        encryption=fitz.PDF_ENCRYPT_AES_256,
+        owner_pw=os.urandom(16).hex(),
         permissions=perm_mask
     )
     doc.close()
