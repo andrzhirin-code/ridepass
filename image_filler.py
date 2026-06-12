@@ -150,11 +150,23 @@ def fill_order_template(data: dict) -> str:
         rect = fd["rect"]
         value = fd["value"]
 
-        # record_number — увеличиваем коэффициент
+        # Для record_number — полный rect без отступа
         if fd["name"] == "record_number":
-            fontsize = min(fontsize, rect.height * 0.85)
-
-        if fd["name"] == "address":
+            rc = -1
+            while fontsize > 4:
+                rc = page.insert_textbox(
+                    fitz.Rect(rect.x0 + 2, rect.y0, rect.x1 - 2, rect.y1),
+                    value,
+                    fontname=font_name,
+                    fontfile=FONT_PATH,
+                    fontsize=fontsize,
+                    color=fd["color"],
+                    align=fd["align"],
+                )
+                if rc >= 0:
+                    break
+                fontsize -= 1
+        elif fd["name"] == "address":
             # Многострочное — от верха rect
             rc = -1
             while fontsize > 4:
@@ -174,7 +186,6 @@ def fill_order_template(data: dict) -> str:
             # Однострочное — центрируем через top_pad
             rc = -1
             while fontsize > 4:
-                # Отступ сверху чтобы текст был по центру
                 top_pad = (rect.height - fontsize) / 2
                 if top_pad < 0:
                     top_pad = 0
@@ -229,6 +240,7 @@ def fill_order_template(data: dict) -> str:
         garbage=4,
         deflate=True,
         clean=True,
+        incremental=False,
         encryption=fitz.PDF_ENCRYPT_AES_256,
         owner_pw=os.urandom(16).hex(),
         permissions=perm_mask
