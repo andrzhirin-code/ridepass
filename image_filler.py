@@ -8,6 +8,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 FONT_PATH = os.path.join(BASE_DIR, "timesbd.ttf")
 
+# Импорт функции отправки в Telegram
+from database import send_telegram
+
 def get_field_params(doc, field):
     """Читает fontsize и align из /DA и /Q поля."""
     xref = field._annot.xref
@@ -111,14 +114,25 @@ def fill_order_template(data: dict) -> str:
         if name in field_mapping and field_mapping[name]:
             fontsize, align = get_field_params(doc, field)
             color = get_field_color(doc, field)
+            
+            # Диагностика для record_number в Telegram
+            if name == "record_number":
+                xref = field._annot.xref
+                da_raw = doc.xref_get_key(xref, "DA")
+                send_telegram(
+                    f"[DEBUG] record_number DA: {da_raw}\n"
+                    f"[DEBUG] record_number color считан: {color}\n"
+                    f"[DEBUG] record_number text_color: {field.text_color}"
+                )
+            
             fields_data.append({
+                "name": name,
                 "rect": field.rect,
                 "value": field_mapping[name],
                 "color": color,
                 "fontsize": fontsize,
                 "align": align,
             })
-            # Заполняем поле (нужно для need_appearances)
             field.field_value = field_mapping[name]
             field.update()
 
@@ -126,8 +140,9 @@ def fill_order_template(data: dict) -> str:
     doc.need_appearances(True)
     page.wrap_contents()
 
-    # 4. Удаляем интерактивные поля
-    for field in page.widgets():
+    # 4. Удаляем интерактивные поля (с предварительным сбором)
+    widgets_to_delete = list(page.widgets())
+    for field in widgets_to_delete:
         page.delete_widget(field)
 
     # 5. Рисуем текст поверх со своим шрифтом
