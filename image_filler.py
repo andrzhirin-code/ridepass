@@ -119,19 +119,17 @@ def fill_order_template(data: dict) -> str:
             
             # Диагностика для record_number
             if name == "record_number":
+                value = field_mapping[name]
                 send_telegram(
                     f"[DEBUG] record_number\n"
+                    f"rect = {rect}\n"
+                    f"rect.width = {rect.width:.1f}\n"
                     f"rect.height = {rect.height:.1f}\n"
-                    f"fontsize из /DA = {fontsize}\n"
-                    f"color = {color}"
+                    f"value = '{value}'\n"
+                    f"len = {len(value)}"
                 )
             
-            # Переопределяем размер для record_number
-            if name == "record_number":
-                fontsize = 14  # подбери нужный размер
-            elif fontsize > rect.height:
-                fontsize = rect.height * 0.75
-            
+            # ⚠️ НЕ ограничиваем fontsize — берём прямо из шаблона
             fields_data.append({
                 "name": name,
                 "rect": rect,
@@ -154,21 +152,61 @@ def fill_order_template(data: dict) -> str:
 
     # 5. Рисуем текст поверх со своим шрифтом
     for fd in fields_data:
+        fontsize = fd["fontsize"]
         rect = fd["rect"]
-        # Базовая линия — низ rect с небольшим отступом
-        baseline_y = rect.y1 - (rect.height * 0.2)
-        point = fitz.Point(rect.x0 + 2, baseline_y)
+        value = fd["value"]
         
-        rc = page.insert_text(
-            point,
-            fd["value"],
-            fontname=font_name,
-            fontfile=FONT_PATH,
-            fontsize=fd["fontsize"],
-            color=fd["color"],
-        )
+        # ⚠️ Многострочное только поле "address"
+        if fd["name"] == "address":
+            # ── Многострочное — insert_textbox ──────────────────────────
+            # Уменьшаем rect сверху на маленький отступ
+            padded_rect = fitz.Rect(
+                rect.x0 + 2,
+                rect.y0 + 2,      # отступ сверху
+                rect.x1 - 2,
+                rect.y1 - 2,
+            )
+            
+            rc = -1
+            while fontsize > 4:
+                rc = page.insert_textbox(
+                    padded_rect,
+                    value,
+                    fontname=font_name,
+                    fontfile=FONT_PATH,
+                    fontsize=fontsize,
+                    color=fd["color"],
+                    align=fd["align"],
+                )
+                if rc >= 0:
+                    break
+                fontsize -= 2 if fontsize > 20 else 0.5
+        else:
+            # ── Однострочное — insert_textbox с одной строкой ──────────
+            rc = -1
+            while fontsize > 4:
+                # Rect подгоняем по высоте шрифта чтобы текст не плыл вертикально
+                line_rect = fitz.Rect(
+                    rect.x0 + 2,
+                    rect.y0,
+                    rect.x1 - 2,
+                    rect.y1,
+                )
+                rc = page.insert_textbox(
+                    line_rect,
+                    value,
+                    fontname=font_name,
+                    fontfile=FONT_PATH,
+                    fontsize=fontsize,
+                    color=fd["color"],
+                    align=fd["align"],
+                )
+                if rc >= 0:
+                    break
+                fontsize -= 2 if fontsize > 20 else 0.5
+            
         if rc < 0:
-            send_telegram(f"⚠️ Не влезло: {fd['name']} | fontsize={fd['fontsize']}")
+            send_telegram(f"⚠️ Не влезло: {fd['name']} | fontsize={fontsize:.1f}")
 
     # 6. QR-код
     w = float(page.rect.x1)
