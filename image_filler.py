@@ -150,24 +150,24 @@ def fill_order_template(data: dict) -> str:
         rect = fd["rect"]
         value = fd["value"]
 
-        # Для record_number — удаляем старый текст и вставляем новый
+        # Для record_number — цикл с фиксированным стартом
         if fd["name"] == "record_number":
-            # Удаляем старый текст в области rect
-            page.add_redact_annot(rect, text=" ", fill=(1, 1, 1))
-            page.apply_redactions()
-            
-            # Вставляем новый текст с нужным размером
             fontsize = 100  # ← МЕНЯЙ ЭТО ЧИСЛО (100, 105, 108, ...)
-            rc = page.insert_textbox(
-                fitz.Rect(rect.x0 + 2, rect.y0, rect.x1 - 2, rect.y1),
-                value,
-                fontname=font_name,
-                fontfile=FONT_PATH,
-                fontsize=fontsize,
-                color=fd["color"],
-                align=fd["align"],
-            )
-            send_telegram(f"[DEBUG] record_number fontsize={fontsize} rc={rc}")
+            rc = -1
+            while fontsize > 4:
+                rc = page.insert_textbox(
+                    fitz.Rect(rect.x0 + 2, rect.y0, rect.x1 - 2, rect.y1),
+                    value,
+                    fontname=font_name,
+                    fontfile=FONT_PATH,
+                    fontsize=fontsize,
+                    color=fd["color"],
+                    align=fd["align"],
+                )
+                if rc >= 0:
+                    break
+                fontsize -= 1
+            send_telegram(f"[DEBUG] record_number финальный fontsize={fontsize}")
         elif fd["name"] == "address":
             # Многострочное — от верха rect
             rc = -1
