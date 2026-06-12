@@ -76,12 +76,12 @@ def fill_order_template(data: dict) -> str:
     doc = fitz.open(TEMPLATE_PATH)
     page = doc.load_page(0)
 
-    # 🔥 ДИАГНОСТИКА: отправляем page.rect в Telegram
-    send_telegram(f"[INFO] page.rect = {page.rect}")
-
     # 1. Регистрируем шрифт в документе
     font_name = "TimesNewRomanBold"
     page.insert_font(fontname=font_name, fontfile=FONT_PATH)
+
+    # Масштаб относительно A4
+    scale = page.rect.width / 595.28
 
     field_mapping = {
         "record_number": str(data.get('passport_number', '')).replace("№", ""),
@@ -131,7 +131,9 @@ def fill_order_template(data: dict) -> str:
                     f"len = {len(value)}"
                 )
             
-            # ⚠️ НЕ делим на масштаб — будем разбираться после page.rect
+            # ✅ ЕДИНСТВЕННОЕ ДЕЛЕНИЕ НА МАСШТАБ
+            fontsize = fontsize / scale
+            
             fields_data.append({
                 "name": name,
                 "rect": rect,
@@ -153,6 +155,9 @@ def fill_order_template(data: dict) -> str:
         page.delete_widget(field)
 
     # 5. Рисуем текст поверх со своим шрифтом
+    # ⚠️ Масштабируем отступы
+    pad = 2 * scale
+    
     for fd in fields_data:
         fontsize = fd["fontsize"]
         rect = fd["rect"]
@@ -163,10 +168,10 @@ def fill_order_template(data: dict) -> str:
             # ── Многострочное — insert_textbox ──────────────────────────
             # Уменьшаем rect сверху на маленький отступ
             padded_rect = fitz.Rect(
-                rect.x0 + 2,
-                rect.y0 + 2,      # отступ сверху
-                rect.x1 - 2,
-                rect.y1 - 2,
+                rect.x0 + pad,
+                rect.y0 + pad,
+                rect.x1 - pad,
+                rect.y1 - pad,
             )
             
             rc = -1
@@ -189,9 +194,9 @@ def fill_order_template(data: dict) -> str:
             while fontsize > 4:
                 # Rect подгоняем по высоте шрифта чтобы текст не плыл вертикально
                 line_rect = fitz.Rect(
-                    rect.x0 + 2,
+                    rect.x0 + pad,
                     rect.y0,
-                    rect.x1 - 2,
+                    rect.x1 - pad,
                     rect.y1,
                 )
                 rc = page.insert_textbox(
