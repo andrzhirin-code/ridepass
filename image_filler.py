@@ -81,6 +81,9 @@ def fill_order_template(data: dict) -> str:
     font_name = "TimesNewRomanBold"
     page.insert_font(fontname=font_name, fontfile=FONT_PATH)
 
+    # Масштаб твоего шаблона относительно стандартного A4
+    scale = page.rect.width / 595.0
+
     field_mapping = {
         "record_number": str(data.get('passport_number', '')).replace("№", ""),
         "series": data.get('series_code', ''),
@@ -129,7 +132,9 @@ def fill_order_template(data: dict) -> str:
                     f"len = {len(value)}"
                 )
             
-            # ⚠️ НЕ ограничиваем fontsize — берём прямо из шаблона
+            # ⚠️ НОРМАЛИЗУЕМ FONTSIZE: делим на масштаб страницы
+            fontsize = fontsize / scale
+            
             fields_data.append({
                 "name": name,
                 "rect": rect,
