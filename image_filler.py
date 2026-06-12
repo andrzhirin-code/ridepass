@@ -8,7 +8,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 FONT_PATH = os.path.join(BASE_DIR, "timesbd.ttf")
 
-# Импорт функции отправки в Telegram
 from database import send_telegram
 
 def get_field_params(doc, field):
@@ -77,12 +76,12 @@ def fill_order_template(data: dict) -> str:
     doc = fitz.open(TEMPLATE_PATH)
     page = doc.load_page(0)
 
+    # 🔥 ДИАГНОСТИКА: отправляем page.rect в Telegram
+    send_telegram(f"[INFO] page.rect = {page.rect}")
+
     # 1. Регистрируем шрифт в документе
     font_name = "TimesNewRomanBold"
     page.insert_font(fontname=font_name, fontfile=FONT_PATH)
-
-    # Масштаб твоего шаблона относительно стандартного A4
-    scale = page.rect.width / 595.0
 
     field_mapping = {
         "record_number": str(data.get('passport_number', '')).replace("№", ""),
@@ -132,9 +131,7 @@ def fill_order_template(data: dict) -> str:
                     f"len = {len(value)}"
                 )
             
-            # ⚠️ НОРМАЛИЗУЕМ FONTSIZE: делим на масштаб страницы
-            fontsize = fontsize / scale
-            
+            # ⚠️ НЕ делим на масштаб — будем разбираться после page.rect
             fields_data.append({
                 "name": name,
                 "rect": rect,
