@@ -128,7 +128,6 @@ def fill_order_template(data: dict) -> str:
                     f"len = {len(value)}"
                 )
             
-            # ⚠️ НЕ делим fontsize ни на что
             fields_data.append({
                 "name": name,
                 "rect": rect,
@@ -140,49 +139,24 @@ def fill_order_template(data: dict) -> str:
             field.field_value = field_mapping[name]
             field.update()
 
-    # 3. Закрепляем внешний вид и удаляем интерактивность
-    doc.need_appearances(True)
-    page.wrap_contents()
-
-    # 4. Удаляем интерактивные поля (с предварительным сбором)
+    # 3. Удаляем интерактивные поля СНАЧАЛА
     widgets_to_delete = list(page.widgets())
     for field in widgets_to_delete:
         page.delete_widget(field)
 
-    # 5. Рисуем текст поверх со своим шрифтом
-    pad = 2
-    
+    # 4. Рисуем текст поверх со своим шрифтом
     for fd in fields_data:
         fontsize = fd["fontsize"]
         rect = fd["rect"]
         value = fd["value"]
         
-        # ⚠️ Диагностика для record_number
+        # Для record_number ограничиваем шрифт
         if fd["name"] == "record_number":
-            # Пробуем вставить и смотрим rc
-            test_rc = page.insert_textbox(
-                fitz.Rect(rect.x0 + pad, rect.y0, rect.x1 - pad, rect.y1),
-                value,
-                fontname=font_name,
-                fontfile=FONT_PATH,
-                fontsize=fontsize,
-                color=fd["color"],
-                align=fd["align"],
-            )
-            send_telegram(f"[DEBUG] record_number insert rc={test_rc} fontsize={fontsize:.1f}")
-            continue  # временно пропускаем остальную логику
+            fontsize = min(fontsize, rect.height * 0.75)
         
-        # ⚠️ Многострочное только поле "address"
         if fd["name"] == "address":
             # ── Многострочное — insert_textbox ──────────────────────────
-            # Уменьшаем rect сверху на маленький отступ
-            padded_rect = fitz.Rect(
-                rect.x0 + pad,
-                rect.y0 + pad,
-                rect.x1 - pad,
-                rect.y1 - pad,
-            )
-            
+            padded_rect = fitz.Rect(rect.x0 + 2, rect.y0 + 2, rect.x1 - 2, rect.y1 - 2)
             rc = -1
             while fontsize > 4:
                 rc = page.insert_textbox(
@@ -198,31 +172,33 @@ def fill_order_template(data: dict) -> str:
                     break
                 fontsize -= 2 if fontsize > 20 else 0.5
         else:
-            # ── Однострочное — insert_textbox с одной строкой ──────────
+            # ── Однострочное — insert_text с ручным baseline ────────────
             rc = -1
             while fontsize > 4:
-                # Rect подгоняем по высоте шрифта чтобы текст не плыл вертикально
-                line_rect = fitz.Rect(
-                    rect.x0 + pad,
-                    rect.y0,
-                    rect.x1 - pad,
-                    rect.y1,
-                )
-                rc = page.insert_textbox(
-                    line_rect,
+                # baseline = вертикальный центр rect
+                baseline_y = rect.y0 + (rect.height + fontsize * 0.75) / 2
+                point = fitz.Point(rect.x0 + 2, baseline_y)
+                written = page.insert_text(
+                    point,
                     value,
                     fontname=font_name,
                     fontfile=FONT_PATH,
                     fontsize=fontsize,
                     color=fd["color"],
-                    align=fd["align"],
                 )
-                if rc >= 0:
+                # Проверяем влезает ли по ширине
+                text_width = fitz.get_text_length(value, fontname=font_name, fontsize=fontsize)
+                if text_width <= rect.width - 4:
+                    rc = 0
                     break
                 fontsize -= 2 if fontsize > 20 else 0.5
-            
-        if rc < 0:
-            send_telegram(f"⚠️ Не влезло: {fd['name']} | fontsize={fontsize:.1f}")
+        
+        if fontsize <= 4:
+            send_telegram(f"⚠️ Не влезло: {fd['name']}")
+
+    # 5. ВПАИВАЕМ текст в страницу — ПОСЛЕ рисования
+    page.wrap_contents()
+    doc.need_appearances(False)
 
     # 6. QR-код
     w = float(page.rect.x1)
