@@ -153,7 +153,8 @@ def fill_order_template(data: dict) -> str:
         # Для record_number — удаляем старый текст и вставляем новый
         if fd["name"] == "record_number":
             # Удаляем старый текст в области rect
-            page.redact_annot(rect, text=" ", fill=(1, 1, 1))
+            page.add_redact_annot(rect, text=" ", fill=(1, 1, 1))
+            page.apply_redactions()
             
             # Вставляем новый текст с нужным размером
             fontsize = 100  # ← МЕНЯЙ ЭТО ЧИСЛО (100, 105, 108, ...)
