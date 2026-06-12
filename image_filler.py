@@ -171,22 +171,21 @@ def fill_order_template(data: dict) -> str:
                     break
                 fontsize -= 2 if fontsize > 20 else 0.5
         else:
-            # Однострочное — центрируем вертикально
+            # Однострочное — центрируем через top_pad
             rc = -1
             while fontsize > 4:
-                # Высота строки ~1.2 * fontsize
-                line_height = fontsize * 1.2
-                # Вертикальный центр rect
-                center_y = rect.y0 + rect.height / 2
-                # Rect высотой одной строки, центрированный
-                line_rect = fitz.Rect(
+                # Отступ сверху чтобы текст был по центру
+                top_pad = (rect.height - fontsize) / 2
+                if top_pad < 0:
+                    top_pad = 0
+                draw_rect = fitz.Rect(
                     rect.x0 + 2,
-                    center_y - line_height / 2,
+                    rect.y0 + top_pad,
                     rect.x1 - 2,
-                    center_y + line_height / 2,
+                    rect.y1,
                 )
                 rc = page.insert_textbox(
-                    line_rect,
+                    draw_rect,
                     value,
                     fontname=font_name,
                     fontfile=FONT_PATH,
@@ -229,7 +228,7 @@ def fill_order_template(data: dict) -> str:
         output_path,
         garbage=4,
         deflate=True,
-        clean=True,  # ← ВАЖНО: фиксирует текст
+        clean=True,
         encryption=fitz.PDF_ENCRYPT_AES_256,
         owner_pw=os.urandom(16).hex(),
         permissions=perm_mask
