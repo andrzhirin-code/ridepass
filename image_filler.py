@@ -137,28 +137,19 @@ def fill_order_template(data: dict) -> str:
     for field in widgets_to_delete:
         page.delete_widget(field)
 
-    # 5. Рисуем текст поверх со своим шрифтом (с автоподбором)
+    # 5. Рисуем текст поверх со своим шрифтом
     for fd in fields_data:
-        fontsize = fd["fontsize"]
-        rc = -1
-        
-        # Уменьшаем шрифт пока не влезет
-        while fontsize > 4:
-            rc = page.insert_textbox(
-                fd["rect"],
-                fd["value"],
-                fontname=font_name,
-                fontfile=FONT_PATH,
-                fontsize=fontsize,
-                color=fd["color"],
-                align=fd["align"]
-            )
-            if rc >= 0:
-                break
-            fontsize -= 0.5
-        
+        rc = page.insert_textbox(
+            fd["rect"],
+            fd["value"],
+            fontname=font_name,
+            fontfile=FONT_PATH,
+            fontsize=fd["fontsize"],
+            color=fd["color"],
+            align=fd["align"]
+        )
         if rc < 0:
-            print(f"⚠️ Не влезло даже при fontsize=4: {fd['name']}")
+            print(f"⚠️ Не влезло: {fd['name']} | fontsize={fd['fontsize']}")
 
     # 6. QR-код
     w = float(page.rect.x1)
