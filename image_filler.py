@@ -16,7 +16,7 @@ def get_field_params(doc, field):
     da_tuple = doc.xref_get_key(xref, "DA")
     da_str = da_tuple[1] if da_tuple and len(da_tuple) > 1 else ""
     
-    fontsize = 10.0  # fallback
+    fontsize = 10.0
     m = re.search(r"([\d.]+)\s+Tf", da_str)
     if m:
         fontsize = float(m.group(1))
@@ -33,6 +33,35 @@ def get_field_params(doc, field):
     align = align_map.get(q_val, fitz.TEXT_ALIGN_LEFT)
     
     return fontsize, align
+
+def get_field_color(doc, field):
+    """Читает цвет текста из /DA строки поля."""
+    xref = field._annot.xref
+    da_tuple = doc.xref_get_key(xref, "DA")
+    da_str = da_tuple[1] if da_tuple and len(da_tuple) > 1 else ""
+    
+    # RGB: "0.2 0.4 0.8 rg"
+    m = re.search(r"([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+rg", da_str)
+    if m:
+        return (float(m.group(1)), float(m.group(2)), float(m.group(3)))
+    
+    # Grayscale: "0.5 g"
+    m = re.search(r"([\d.]+)\s+g\b", da_str)
+    if m:
+        g = float(m.group(1))
+        return (g, g, g)
+    
+    # CMYK: "0 0 1 0 k"
+    m = re.search(r"([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)\s+k", da_str)
+    if m:
+        c, mg, y, k = [float(m.group(i)) for i in range(1, 5)]
+        return (
+            (1-c)*(1-k),
+            (1-mg)*(1-k),
+            (1-y)*(1-k)
+        )
+    
+    return (0, 0, 0)
 
 def fill_order_template(data: dict) -> str:
     print("📝 fill_order_template: старт")
@@ -75,16 +104,17 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
-    # 2. Сначала собираем данные полей
+    # 2. Собираем данные полей
     fields_data = []
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
             fontsize, align = get_field_params(doc, field)
+            color = get_field_color(doc, field)
             fields_data.append({
                 "rect": field.rect,
                 "value": field_mapping[name],
-                "color": field.text_color or (0, 0, 0),
+                "color": color,
                 "fontsize": fontsize,
                 "align": align,
             })
