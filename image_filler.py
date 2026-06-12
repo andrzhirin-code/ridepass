@@ -144,57 +144,31 @@ def fill_order_template(data: dict) -> str:
     for field in widgets_to_delete:
         page.delete_widget(field)
 
-    # 4. Рисуем текст поверх со своим шрифтом
+    # 4. Рисуем текст поверх со своим шрифтом (единый цикл)
     for fd in fields_data:
         fontsize = fd["fontsize"]
         rect = fd["rect"]
         value = fd["value"]
-        
-        # Для record_number ограничиваем шрифт
+
+        # record_number — увеличиваем коэффициент
         if fd["name"] == "record_number":
-            fontsize = min(fontsize, rect.height * 0.75)
-        
-        if fd["name"] == "address":
-            # ── Многострочное — insert_textbox ──────────────────────────
-            padded_rect = fitz.Rect(rect.x0 + 2, rect.y0 + 2, rect.x1 - 2, rect.y1 - 2)
-            rc = -1
-            while fontsize > 4:
-                rc = page.insert_textbox(
-                    padded_rect,
-                    value,
-                    fontname=font_name,
-                    fontfile=FONT_PATH,
-                    fontsize=fontsize,
-                    color=fd["color"],
-                    align=fd["align"],
-                )
-                if rc >= 0:
-                    break
-                fontsize -= 2 if fontsize > 20 else 0.5
-        else:
-            # ── Однострочное — insert_text с ручным baseline ────────────
-            rc = -1
-            while fontsize > 4:
-                baseline_y = rect.y0 + (rect.height + fontsize * 0.75) / 2
-                point = fitz.Point(rect.x0 + 2, baseline_y)
-                
-                # Простая оценка ширины: ~0.6 * fontsize на символ
-                estimated_width = len(value) * fontsize * 0.6
-                if estimated_width > rect.width - 4:
-                    fontsize -= 2 if fontsize > 20 else 0.5
-                    continue
-                
-                page.insert_text(
-                    point,
-                    value,
-                    fontname=font_name,
-                    fontfile=FONT_PATH,
-                    fontsize=fontsize,
-                    color=fd["color"],
-                )
-                rc = 0
+            fontsize = min(fontsize, rect.height * 0.85)
+
+        rc = -1
+        while fontsize > 4:
+            rc = page.insert_textbox(
+                fitz.Rect(rect.x0 + 2, rect.y0 + 2, rect.x1 - 2, rect.y1 - 2),
+                value,
+                fontname=font_name,
+                fontfile=FONT_PATH,
+                fontsize=fontsize,
+                color=fd["color"],
+                align=fd["align"],
+            )
+            if rc >= 0:
                 break
-        
+            fontsize -= 2 if fontsize > 20 else 0.5
+
         if fontsize <= 4:
             send_telegram(f"⚠️ Не влезло: {fd['name']}")
 
