@@ -152,7 +152,7 @@ def fill_order_template(data: dict) -> str:
 
         # Для record_number — цикл с фиксированным стартом
         if fd["name"] == "record_number":
-            fontsize = 100  # ← МЕНЯЙ ЭТО ЧИСЛО (100, 105, 108, ...)
+            fontsize = 150  # ← МЕНЯЙ ЭТО ЧИСЛО (100, 105, 108, ...)
             rc = -1
             while fontsize > 4:
                 rc = page.insert_textbox(
