@@ -80,9 +80,6 @@ def fill_order_template(data: dict) -> str:
     font_name = "TimesNewRomanBold"
     page.insert_font(fontname=font_name, fontfile=FONT_PATH)
 
-    # Масштаб относительно A4
-    scale = page.rect.width / 595.28
-
     field_mapping = {
         "record_number": str(data.get('passport_number', '')).replace("№", ""),
         "series": data.get('series_code', ''),
@@ -131,9 +128,7 @@ def fill_order_template(data: dict) -> str:
                     f"len = {len(value)}"
                 )
             
-            # ✅ ЕДИНСТВЕННОЕ ДЕЛЕНИЕ НА МАСШТАБ
-            fontsize = fontsize / scale
-            
+            # ⚠️ НЕ делим fontsize ни на что
             fields_data.append({
                 "name": name,
                 "rect": rect,
@@ -155,13 +150,27 @@ def fill_order_template(data: dict) -> str:
         page.delete_widget(field)
 
     # 5. Рисуем текст поверх со своим шрифтом
-    # ⚠️ Масштабируем отступы
-    pad = 2 * scale
+    pad = 2
     
     for fd in fields_data:
         fontsize = fd["fontsize"]
         rect = fd["rect"]
         value = fd["value"]
+        
+        # ⚠️ Диагностика для record_number
+        if fd["name"] == "record_number":
+            # Пробуем вставить и смотрим rc
+            test_rc = page.insert_textbox(
+                fitz.Rect(rect.x0 + pad, rect.y0, rect.x1 - pad, rect.y1),
+                value,
+                fontname=font_name,
+                fontfile=FONT_PATH,
+                fontsize=fontsize,
+                color=fd["color"],
+                align=fd["align"],
+            )
+            send_telegram(f"[DEBUG] record_number insert rc={test_rc} fontsize={fontsize:.1f}")
+            continue  # временно пропускаем остальную логику
         
         # ⚠️ Многострочное только поле "address"
         if fd["name"] == "address":
