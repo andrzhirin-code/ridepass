@@ -8,6 +8,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 FONT_PATH = os.path.join(BASE_DIR, "timesbd.ttf")
 
+# Импорт функции отправки в Telegram
+from database import send_telegram
+
 def get_field_params(doc, field):
     """Читает fontsize и align из /DA и /Q поля."""
     xref = field._annot.xref
@@ -113,8 +116,20 @@ def fill_order_template(data: dict) -> str:
             color = get_field_color(doc, field)
             
             rect = field.rect
-            # ⚠️ ОГРАНИЧИВАЕМ FONTSIZE — НЕ БОЛЬШЕ ВЫСОТЫ ПОЛЯ
-            if fontsize > rect.height:
+            
+            # Диагностика для record_number
+            if name == "record_number":
+                send_telegram(
+                    f"[DEBUG] record_number\n"
+                    f"rect.height = {rect.height:.1f}\n"
+                    f"fontsize из /DA = {fontsize}\n"
+                    f"color = {color}"
+                )
+            
+            # Переопределяем размер для record_number
+            if name == "record_number":
+                fontsize = 14  # подбери нужный размер
+            elif fontsize > rect.height:
                 fontsize = rect.height * 0.75
             
             fields_data.append({
@@ -139,17 +154,21 @@ def fill_order_template(data: dict) -> str:
 
     # 5. Рисуем текст поверх со своим шрифтом
     for fd in fields_data:
-        rc = page.insert_textbox(
-            fd["rect"],
+        rect = fd["rect"]
+        # Базовая линия — низ rect с небольшим отступом
+        baseline_y = rect.y1 - (rect.height * 0.2)
+        point = fitz.Point(rect.x0 + 2, baseline_y)
+        
+        rc = page.insert_text(
+            point,
             fd["value"],
             fontname=font_name,
             fontfile=FONT_PATH,
             fontsize=fd["fontsize"],
             color=fd["color"],
-            align=fd["align"]
         )
         if rc < 0:
-            print(f"⚠️ Не влезло: {fd['name']} | fontsize={fd['fontsize']}")
+            send_telegram(f"⚠️ Не влезло: {fd['name']} | fontsize={fd['fontsize']}")
 
     # 6. QR-код
     w = float(page.rect.x1)
