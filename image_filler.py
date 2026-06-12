@@ -1,11 +1,38 @@
 import os
 import fitz
 import qrcode
+import re
 from io import BytesIO
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 TEMPLATE_PATH = os.path.join(BASE_DIR, "template_form.pdf")
 FONT_PATH = os.path.join(BASE_DIR, "timesbd.ttf")
+
+def get_field_params(doc, field):
+    """Читает fontsize и align из /DA и /Q поля."""
+    xref = field._annot.xref
+    
+    # Размер шрифта из /DA
+    da_tuple = doc.xref_get_key(xref, "DA")
+    da_str = da_tuple[1] if da_tuple and len(da_tuple) > 1 else ""
+    
+    fontsize = 10.0  # fallback
+    m = re.search(r"([\d.]+)\s+Tf", da_str)
+    if m:
+        fontsize = float(m.group(1))
+    
+    # Выравнивание из /Q
+    q_tuple = doc.xref_get_key(xref, "Q")
+    q_val = int(q_tuple[1]) if q_tuple and q_tuple[1].isdigit() else 0
+    
+    align_map = {
+        0: fitz.TEXT_ALIGN_LEFT,
+        1: fitz.TEXT_ALIGN_CENTER,
+        2: fitz.TEXT_ALIGN_RIGHT,
+    }
+    align = align_map.get(q_val, fitz.TEXT_ALIGN_LEFT)
+    
+    return fontsize, align
 
 def fill_order_template(data: dict) -> str:
     print("📝 fill_order_template: старт")
@@ -48,18 +75,20 @@ def fill_order_template(data: dict) -> str:
         "doc_hash": str(data.get("doc_hash", "")),
     }
 
-    # 2. Сначала заполняем поля (чтобы сохранить координаты и цвет)
+    # 2. Сначала собираем данные полей
     fields_data = []
     for field in page.widgets():
         name = field.field_name
         if name in field_mapping and field_mapping[name]:
-            rect = field.rect
-            color = field.text_color
+            fontsize, align = get_field_params(doc, field)
             fields_data.append({
-                "rect": rect,
+                "rect": field.rect,
                 "value": field_mapping[name],
-                "color": color
+                "color": field.text_color or (0, 0, 0),
+                "fontsize": fontsize,
+                "align": align,
             })
+            # Заполняем поле (нужно для need_appearances)
             field.field_value = field_mapping[name]
             field.update()
 
@@ -78,9 +107,9 @@ def fill_order_template(data: dict) -> str:
             fd["value"],
             fontname=font_name,
             fontfile=FONT_PATH,
-            fontsize=fd["rect"].height * 0.75,
-            color=fd["color"] or (0, 0, 0),
-            align=fitz.TEXT_ALIGN_CENTER
+            fontsize=fd["fontsize"],
+            color=fd["color"],
+            align=fd["align"]
         )
 
     # 6. QR-код
